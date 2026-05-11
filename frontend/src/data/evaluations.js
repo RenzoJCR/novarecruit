@@ -1,0 +1,32 @@
+export const evaluations = [
+  {
+    id: 1,
+    title: "Evaluación React Junior",
+    area: "Frontend",
+    duration: 40,
+    questions: 12,
+    status: "Disponible",
+    assignedTo: "Carlos Mendoza",
+    candidateVisibleScore: false,
+  },
+  {
+    id: 2,
+    title: "Evaluación Java Spring Boot",
+    area: "Backend",
+    duration: 60,
+    questions: 15,
+    status: "Asignada",
+    assignedTo: "Lucía Fernández",
+    candidateVisibleScore: false,
+  },
+  {
+    id: 3,
+    title: "Evaluación QA Automation",
+    area: "QA",
+    duration: 35,
+    questions: 10,
+    status: "Disponible",
+    assignedTo: null,
+    candidateVisibleScore: false,
+  },
+];
