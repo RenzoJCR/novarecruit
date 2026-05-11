@@ -5,7 +5,14 @@ export const mockUsers = {
     role: "postulante",
     roleLabel: "Postulante",
     email: "carlos.mendoza@email.com",
+    phone: "+51 987 654 321",
+    linkedin: "linkedin.com/in/carlosmendoza",
+    github: "github.com/carlosmendoza",
+    cvUrl: "https://drive.google.com/cv-carlos",
+    summary:
+      "Desarrollador frontend junior con conocimientos en React, JavaScript, TailwindCSS y consumo de APIs REST.",
   },
+
   rrhh: {
     id: 2,
     name: "María Torres",
@@ -13,6 +20,7 @@ export const mockUsers = {
     roleLabel: "Recursos Humanos",
     email: "maria.torres@novatech.com",
   },
+
   tecnico: {
     id: 3,
     name: "Luis Ramírez",
@@ -20,6 +28,7 @@ export const mockUsers = {
     roleLabel: "Líder Técnico",
     email: "luis.ramirez@novatech.com",
   },
+
   administrador: {
     id: 4,
     name: "Admin NovaTech",

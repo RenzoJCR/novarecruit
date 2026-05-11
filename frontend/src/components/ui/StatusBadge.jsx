@@ -1,22 +1,27 @@
 const statusStyles = {
-  Activa: "bg-green-100 text-green-700 border-green-200",
-  Cerrada: "bg-red-100 text-red-700 border-red-200",
-  Pausada: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  Activa: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Cerrada: "bg-rose-50 text-rose-700 border-rose-200",
+  Pausada: "bg-amber-50 text-amber-700 border-amber-200",
 
   POSTULADO: "bg-slate-100 text-slate-700 border-slate-200",
-  REVISION_RRHH: "bg-blue-100 text-blue-700 border-blue-200",
-  APROBADO_RRHH: "bg-green-100 text-green-700 border-green-200",
-  RECHAZADO_RRHH: "bg-red-100 text-red-700 border-red-200",
-  EVALUACION_PENDIENTE: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  EVALUACION_COMPLETADA: "bg-purple-100 text-purple-700 border-purple-200",
-  APROBADO_TECNICO: "bg-green-100 text-green-700 border-green-200",
-  RECHAZADO_TECNICO: "bg-red-100 text-red-700 border-red-200",
-  SELECCIONADO: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  RECHAZADO_FINAL: "bg-red-100 text-red-700 border-red-200",
+  REVISION_RRHH: "bg-sky-50 text-sky-700 border-sky-200",
+  APROBADO_RRHH: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  RECHAZADO_RRHH: "bg-rose-50 text-rose-700 border-rose-200",
+  EVALUACION_PENDIENTE: "bg-amber-50 text-amber-700 border-amber-200",
+  EVALUACION_COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
+  APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
+  SELECCIONADO: "bg-teal-50 text-teal-700 border-teal-200",
+  RECHAZADO_FINAL: "bg-rose-50 text-rose-700 border-rose-200",
 
-  Disponible: "bg-green-100 text-green-700 border-green-200",
-  Asignada: "bg-blue-100 text-blue-700 border-blue-200",
-  Pendiente: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  Disponible: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Asignada: "bg-sky-50 text-sky-700 border-sky-200",
+  Completada: "bg-violet-50 text-violet-700 border-violet-200",
+  Calificada: "bg-teal-50 text-teal-700 border-teal-200",
+  Pendiente: "bg-amber-50 text-amber-700 border-amber-200",
+
+  Activo: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Inactivo: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
 const statusLabels = {
@@ -40,8 +45,9 @@ function StatusBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${style}`}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${style}`}
     >
+      <span className="w-2 h-2 rounded-full bg-current opacity-70" />
       {label}
     </span>
   );

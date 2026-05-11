@@ -5,6 +5,14 @@ import { useAuth } from "../../context/AuthContext.jsx";
 function ApplicantProfile() {
   const { currentUser } = useAuth();
 
+  const initials =
+    currentUser?.name
+      ?.split(" ")
+      .map((word) => word[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "US";
+
   return (
     <div>
       <SectionHeader
@@ -15,34 +23,36 @@ function ApplicantProfile() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <section className="xl:col-span-1 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="w-24 h-24 rounded-3xl bg-blue-600 text-white flex items-center justify-center text-3xl font-bold">
-            CM
+            {initials}
           </div>
 
           <h2 className="text-2xl font-bold text-slate-900 mt-5">
-            {currentUser?.name}
+            {currentUser?.name || "Usuario postulante"}
           </h2>
 
-          <p className="text-slate-500">{currentUser?.roleLabel}</p>
+          <p className="text-slate-500">
+            {currentUser?.roleLabel || "Postulante"}
+          </p>
 
           <div className="mt-6 space-y-3 text-slate-600">
             <p className="flex items-center gap-3">
               <Mail size={18} className="text-blue-600" />
-              {currentUser?.email}
+              {currentUser?.email || "correo@email.com"}
             </p>
 
             <p className="flex items-center gap-3">
               <Phone size={18} className="text-blue-600" />
-              +51 987 654 321
+              {currentUser?.phone || "+51 987 654 321"}
             </p>
 
             <p className="flex items-center gap-3">
               <Link size={18} className="text-blue-600" />
-              linkedin.com/in/carlosmendoza
+              {currentUser?.linkedin || "linkedin.com/in/carlosmendoza"}
             </p>
 
             <p className="flex items-center gap-3">
               <Code2 size={18} className="text-blue-600" />
-              github.com/carlosmendoza
+              {currentUser?.github || "github.com/carlosmendoza"}
             </p>
           </div>
         </section>
@@ -53,10 +63,8 @@ function ApplicantProfile() {
           </h3>
 
           <p className="text-slate-600 mt-3 leading-relaxed">
-            Desarrollador frontend junior con conocimientos en React,
-            JavaScript, TailwindCSS y consumo de APIs REST. Interesado en
-            participar en proyectos tecnológicos orientados a soluciones web
-            empresariales.
+            {currentUser?.summary ||
+              "Desarrollador frontend junior con conocimientos en React, JavaScript, TailwindCSS y consumo de APIs REST. Interesado en participar en proyectos tecnológicos orientados a soluciones web empresariales."}
           </p>
 
           <div className="mt-8">
@@ -82,7 +90,7 @@ function ApplicantProfile() {
             </div>
 
             <a
-              href="https://drive.google.com/cv-carlos"
+              href={currentUser?.cvUrl || "https://drive.google.com/cv-carlos"}
               target="_blank"
               rel="noreferrer"
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-semibold text-center"

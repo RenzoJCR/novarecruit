@@ -6,6 +6,8 @@ import {
   MapPin,
   Lock,
   CheckCircle2,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 
 import { jobs } from "../../data/jobs.js";
@@ -19,17 +21,18 @@ function PublicJobDetail() {
   if (!job) {
     return (
       <section className="px-8 py-12 max-w-5xl mx-auto">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
-          <h1 className="text-3xl font-bold">Vacante no encontrada</h1>
+        <div className="glass-card rounded-3xl p-10 text-center">
+          <h1 className="text-3xl font-black">Vacante no encontrada</h1>
 
-          <p className="text-slate-400 mt-2">
+          <p className="text-slate-400 mt-3">
             La vacante seleccionada no está disponible.
           </p>
 
           <Link
             to="/vacantes"
-            className="inline-block mt-6 bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-semibold"
+            className="inline-flex items-center gap-2 mt-6 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 px-5 py-3 rounded-2xl font-black"
           >
+            <ArrowLeft size={18} />
             Volver a vacantes
           </Link>
         </div>
@@ -39,16 +42,29 @@ function PublicJobDetail() {
 
   return (
     <section className="px-8 py-12 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <p className="text-blue-400 font-semibold text-sm">{job.area}</p>
+      <Link
+        to="/vacantes"
+        className="inline-flex items-center gap-2 text-slate-300 hover:text-emerald-300 font-bold mb-7"
+      >
+        <ArrowLeft size={18} />
+        Volver a vacantes
+      </Link>
 
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mt-2">
+      <div className="mb-8 glass-card rounded-[2rem] p-8">
+        <p className="inline-flex px-3 py-1 rounded-full bg-emerald-400/10 border border-emerald-300/20 text-emerald-300 text-sm font-bold">
+          {job.area}
+        </p>
+
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mt-5">
           <div>
-            <h1 className="text-4xl font-bold">{job.title}</h1>
+            <h1 className="text-4xl lg:text-5xl font-black tracking-tight">
+              {job.title}
+            </h1>
 
-            <p className="text-slate-400 mt-3 max-w-2xl">
+            <p className="text-slate-400 mt-4 max-w-2xl leading-relaxed">
               Revisa los detalles generales de esta oportunidad en NovaTech
-              Solutions.
+              Solutions. Para postular, deberás crear una cuenta o iniciar
+              sesión como postulante.
             </p>
           </div>
 
@@ -57,15 +73,15 @@ function PublicJobDetail() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <section className="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 className="text-2xl font-bold">Descripción del puesto</h2>
+        <section className="xl:col-span-2 glass-card rounded-[2rem] p-7">
+          <h2 className="text-2xl font-black">Descripción del puesto</h2>
 
           <p className="text-slate-300 mt-4 leading-relaxed">
             {job.description}
           </p>
 
-          <div className="mt-8">
-            <h3 className="text-xl font-bold mb-4">
+          <div className="mt-9">
+            <h3 className="text-xl font-black mb-5">
               Habilidades requeridas
             </h3>
 
@@ -73,67 +89,73 @@ function PublicJobDetail() {
               {job.skills.map((skill) => (
                 <div
                   key={skill.name}
-                  className="border border-slate-800 rounded-2xl p-4 flex items-center justify-between bg-slate-950"
+                  className="border border-white/10 rounded-3xl p-5 flex items-center justify-between bg-slate-950/70"
                 >
                   <div>
-                    <p className="font-bold">{skill.name}</p>
-                    <p className="text-sm text-slate-400">
+                    <p className="font-black">{skill.name}</p>
+                    <p className="text-sm text-slate-400 mt-1">
                       Nivel requerido: {skill.level}
                     </p>
                   </div>
 
-                  <CheckCircle2 className="text-blue-500" size={22} />
+                  <CheckCircle2 className="text-emerald-300" size={23} />
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        <aside className="bg-slate-900 border border-slate-800 rounded-2xl p-6 h-fit">
-          <h3 className="text-xl font-bold mb-5">Información general</h3>
+        <aside className="glass-card rounded-[2rem] p-7 h-fit">
+          <h3 className="text-xl font-black mb-6">Información general</h3>
 
           <div className="space-y-4 text-slate-300">
-            <div className="flex items-center gap-3">
-              <Briefcase size={20} className="text-blue-500" />
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-950/60 border border-white/10 p-4">
+              <Briefcase size={20} className="text-emerald-300" />
               <span>{job.modality}</span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <MapPin size={20} className="text-blue-500" />
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-950/60 border border-white/10 p-4">
+              <MapPin size={20} className="text-emerald-300" />
               <span>{job.location}</span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Coins size={20} className="text-blue-500" />
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-950/60 border border-white/10 p-4">
+              <Coins size={20} className="text-emerald-300" />
               <span>{job.salary}</span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Calendar size={20} className="text-blue-500" />
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-950/60 border border-white/10 p-4">
+              <Calendar size={20} className="text-emerald-300" />
               <span>Cierre: {job.closingDate}</span>
             </div>
           </div>
 
-          <div className="mt-8 bg-slate-950 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-center gap-3 text-slate-300">
-              <Lock size={20} className="text-blue-500" />
+          <div className="mt-7 bg-slate-950/70 border border-white/10 rounded-3xl p-5">
+            <div className="flex items-start gap-3 text-slate-300">
+              <Lock size={21} className="text-emerald-300 shrink-0 mt-1" />
 
-              <p className="font-semibold">
-                Para postular necesitas una cuenta.
-              </p>
+              <div>
+                <p className="font-black">
+                  Para postular necesitas una cuenta
+                </p>
+                <p className="text-sm text-slate-400 mt-1">
+                  Tu perfil centralizará tus datos, CV, GitHub y LinkedIn.
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 mt-5">
               <Link
                 to="/register"
-                className="bg-blue-600 hover:bg-blue-700 text-center px-5 py-3 rounded-xl font-semibold"
+                className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-center px-5 py-3 rounded-2xl font-black"
               >
                 Crear cuenta
+                <ArrowRight size={18} />
               </Link>
 
               <Link
                 to="/login"
-                className="border border-slate-700 hover:bg-slate-800 text-center px-5 py-3 rounded-xl font-semibold"
+                className="border border-white/10 hover:bg-white/10 text-center px-5 py-3 rounded-2xl font-bold"
               >
                 Iniciar sesión
               </Link>
