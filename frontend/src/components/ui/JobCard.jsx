@@ -1,7 +1,13 @@
 import { Calendar, MapPin, Briefcase, Coins } from "lucide-react";
 import StatusBadge from "./StatusBadge.jsx";
 
-function JobCard({ job, onViewDetail, onApply }) {
+function JobCard({
+  job,
+  onViewDetail,
+  onApply,
+  showApplyButton = true,
+  detailLabel = "Ver detalle",
+}) {
   return (
     <article className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all">
       <div className="flex items-start justify-between gap-4">
@@ -57,18 +63,22 @@ function JobCard({ job, onViewDetail, onApply }) {
 
       <div className="flex gap-3 mt-6">
         <button
+          type="button"
           onClick={() => onViewDetail?.(job)}
           className="flex-1 border border-slate-300 hover:bg-slate-50 text-slate-700 py-2.5 rounded-xl font-semibold"
         >
-          Ver detalle
+          {detailLabel}
         </button>
 
-        <button
-          onClick={() => onApply?.(job)}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-semibold"
-        >
-          Postular
-        </button>
+        {showApplyButton && (
+          <button
+            type="button"
+            onClick={() => onApply?.(job)}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-semibold"
+          >
+            Postular
+          </button>
+        )}
       </div>
     </article>
   );

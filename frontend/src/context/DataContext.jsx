@@ -167,6 +167,62 @@ export function DataProvider({ children }) {
     };
   };
 
+  const submitApplicantEvaluation = (evaluationId) => {
+    const selectedEvaluation = evaluations.find(
+      (evaluation) => evaluation.id === Number(evaluationId)
+    );
+
+    if (!selectedEvaluation) {
+      return {
+        ok: false,
+        message: "No se encontró la evaluación seleccionada.",
+      };
+    }
+
+    setEvaluations((prevEvaluations) =>
+      prevEvaluations.map((evaluation) =>
+        evaluation.id === Number(evaluationId)
+          ? {
+              ...evaluation,
+              status: "Completada",
+              score: 78,
+            }
+          : evaluation
+      )
+    );
+
+    if (selectedEvaluation.assignedApplicationId) {
+      setApplications((prevApplications) =>
+        prevApplications.map((application) =>
+          application.id === selectedEvaluation.assignedApplicationId
+            ? {
+                ...application,
+                status: "EVALUACION_COMPLETADA",
+              }
+            : application
+        )
+      );
+    }
+
+    setNotifications((prevNotifications) => [
+      {
+        id: Date.now(),
+        title: "Evaluación enviada",
+        message:
+          "Tu evaluación técnica fue enviada correctamente y será revisada por el líder técnico.",
+        type: "success",
+        read: false,
+        date: getCurrentDate(),
+      },
+      ...prevNotifications,
+    ]);
+
+    return {
+      ok: true,
+      message: "Evaluación enviada correctamente.",
+    };
+  };
+
   const completeTechnicalReview = (applicationId, result) => {
     const newStatus =
       result === "approved" ? "APROBADO_TECNICO" : "RECHAZADO_TECNICO";
@@ -193,6 +249,30 @@ export function DataProvider({ children }) {
           : evaluation
       )
     );
+
+    const reviewedApplication = applications.find(
+      (application) => application.id === applicationId
+    );
+
+    if (reviewedApplication) {
+      setNotifications((prevNotifications) => [
+        {
+          id: Date.now(),
+          title:
+            result === "approved"
+              ? "Evaluación técnica aprobada"
+              : "Evaluación técnica revisada",
+          message:
+            result === "approved"
+              ? `Tu evaluación técnica para ${reviewedApplication.jobTitle} fue aprobada. RRHH continuará con el proceso.`
+              : `Tu evaluación técnica para ${reviewedApplication.jobTitle} fue revisada. RRHH te notificará el resultado final.`,
+          type: result === "approved" ? "success" : "info",
+          read: false,
+          date: getCurrentDate(),
+        },
+        ...prevNotifications,
+      ]);
+    }
   };
 
   const markNotificationAsRead = (notificationId) => {
@@ -246,6 +326,7 @@ export function DataProvider({ children }) {
         updateApplicationStatus,
         createEvaluation,
         assignEvaluationToCandidate,
+        submitApplicantEvaluation,
         completeTechnicalReview,
         markNotificationAsRead,
         createSystemUser,

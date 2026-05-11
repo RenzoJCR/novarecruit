@@ -70,6 +70,7 @@ function ApplicantJobs() {
           className="border border-slate-300 rounded-xl px-4 py-3 outline-none focus:border-blue-500"
         >
           <option value="Todas">Todas las áreas</option>
+
           {areas.map((area) => (
             <option key={area.id} value={area.name}>
               {area.name}
@@ -103,6 +104,7 @@ function ApplicantJobs() {
           <h2 className="text-2xl font-bold text-slate-900">
             No se encontraron vacantes
           </h2>
+
           <p className="text-slate-500 mt-2">
             Prueba con otra búsqueda o cambia los filtros.
           </p>
@@ -114,7 +116,9 @@ function ApplicantJobs() {
               key={job.id}
               job={job}
               onApply={handleApply}
-              onViewDetail={() => navigate("/applicant/vacantes")}
+              onViewDetail={(selectedJob) =>
+                navigate(`/applicant/vacantes/${selectedJob.id}`)
+              }
             />
           ))}
         </div>

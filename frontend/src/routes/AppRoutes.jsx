@@ -12,8 +12,10 @@ import Register from "../pages/auth/Register.jsx";
 
 import ApplicantDashboard from "../pages/applicant/ApplicantDashboard.jsx";
 import ApplicantJobs from "../pages/applicant/ApplicantJobs.jsx";
+import ApplicantJobDetail from "../pages/applicant/ApplicantJobDetail.jsx";
 import ApplicantApplications from "../pages/applicant/ApplicantApplications.jsx";
 import ApplicantEvaluations from "../pages/applicant/ApplicantEvaluations.jsx";
+import ApplicantEvaluationDetail from "../pages/applicant/ApplicantEvaluationDetail.jsx";
 import ApplicantNotifications from "../pages/applicant/ApplicantNotifications.jsx";
 import ApplicantProfile from "../pages/applicant/ApplicantProfile.jsx";
 
@@ -56,12 +58,20 @@ function AppRoutes() {
         <Route path="/applicant/dashboard" element={<ApplicantDashboard />} />
         <Route path="/applicant/vacantes" element={<ApplicantJobs />} />
         <Route
+          path="/applicant/vacantes/:id"
+          element={<ApplicantJobDetail />}
+        />
+        <Route
           path="/applicant/postulaciones"
           element={<ApplicantApplications />}
         />
         <Route
           path="/applicant/evaluaciones"
           element={<ApplicantEvaluations />}
+        />
+        <Route
+          path="/applicant/evaluaciones/:id"
+          element={<ApplicantEvaluationDetail />}
         />
         <Route
           path="/applicant/notificaciones"
