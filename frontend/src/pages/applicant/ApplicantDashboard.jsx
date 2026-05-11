@@ -1,14 +1,14 @@
 import { Bell, Briefcase, ClipboardList, FileText } from "lucide-react";
-import { jobs } from "../../data/jobs.js";
-import { applications } from "../../data/applications.js";
-import { evaluations } from "../../data/evaluations.js";
-import { notifications } from "../../data/notifications.js";
+
 import StatCard from "../../components/ui/StatCard.jsx";
 import JobCard from "../../components/ui/JobCard.jsx";
 import ApplicationCard from "../../components/ui/ApplicationCard.jsx";
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
+import { useData } from "../../context/DataContext.jsx";
 
 function ApplicantDashboard() {
+  const { jobs, applications, evaluations, notifications } = useData();
+
   const pendingEvaluations = evaluations.filter(
     (evaluation) => evaluation.status === "Asignada"
   );
