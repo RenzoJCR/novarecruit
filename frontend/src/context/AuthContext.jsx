@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from "react";
-import { mockUsers } from "../data/users";  
+import { mockUsers } from "../data/users.js";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(mockUsers.postulante);
@@ -10,16 +10,11 @@ export function AuthProvider({ children }) {
     setCurrentUser(mockUsers[role]);
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-  };
-
   return (
     <AuthContext.Provider
       value={{
         currentUser,
         loginAs,
-        logout,
         isAuthenticated: Boolean(currentUser),
       }}
     >
