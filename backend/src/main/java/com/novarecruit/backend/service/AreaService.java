@@ -1,31 +1,35 @@
 package com.novarecruit.backend.service;
 
-import com.novarecruit.backend.dto.request.AreaRequest;
-import com.novarecruit.backend.dto.response.AreaResponse;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+
+import com.novarecruit.backend.dto.Area.AreaMapper;
+import com.novarecruit.backend.dto.Area.AreaRequest;
+import com.novarecruit.backend.dto.Area.AreaResponse;
 import com.novarecruit.backend.entity.Area;
 import com.novarecruit.backend.exception.BusinessException;
 import com.novarecruit.backend.repository.AreaRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class AreaService {
 
     private final AreaRepository areaRepository;
+    private final AreaMapper areaMapper;
 
     public List<AreaResponse> listarAreas() {
         return areaRepository.findAll()
                 .stream()
-                .map(this::mapToResponse)
+                .map(areaMapper::toResponse)
                 .toList();
     }
 
     public AreaResponse obtenerAreaPorId(Long id) {
         Area area = buscarAreaPorId(id);
-        return mapToResponse(area);
+        return areaMapper.toResponse(area);
     }
 
     public AreaResponse crearArea(AreaRequest request) {
@@ -35,15 +39,11 @@ public class AreaService {
             throw new BusinessException("Ya existe un área registrada con ese nombre.");
         }
 
-        Area area = Area.builder()
-                .nombre(nombreNormalizado)
-                .descripcion(request.getDescripcion().trim())
-                .estado(request.getEstado() != null ? request.getEstado() : true)
-                .build();
+        Area area = areaMapper.toEntity(request);
 
         Area areaGuardada = areaRepository.save(area);
 
-        return mapToResponse(areaGuardada);
+        return areaMapper.toResponse(areaGuardada);
     }
 
     public AreaResponse actualizarArea(Long id, AreaRequest request) {
@@ -55,16 +55,11 @@ public class AreaService {
             throw new BusinessException("Ya existe otra área registrada con ese nombre.");
         }
 
-        area.setNombre(nombreNormalizado);
-        area.setDescripcion(request.getDescripcion().trim());
-
-        if (request.getEstado() != null) {
-            area.setEstado(request.getEstado());
-        }
+        areaMapper.updateEntity(area, request);
 
         Area areaActualizada = areaRepository.save(area);
 
-        return mapToResponse(areaActualizada);
+        return areaMapper.toResponse(areaActualizada);
     }
 
     public void eliminarArea(Long id) {
@@ -77,15 +72,5 @@ public class AreaService {
     private Area buscarAreaPorId(Long id) {
         return areaRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("No se encontró el área solicitada."));
-    }
-
-    private AreaResponse mapToResponse(Area area) {
-        return AreaResponse.builder()
-                .id(area.getId())
-                .nombre(area.getNombre())
-                .descripcion(area.getDescripcion())
-                .estado(area.getEstado())
-                .fechaCreacion(area.getFechaCreacion())
-                .build();
     }
 }

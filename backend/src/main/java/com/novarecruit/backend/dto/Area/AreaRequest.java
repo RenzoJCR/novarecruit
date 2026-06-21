@@ -1,4 +1,4 @@
-package com.novarecruit.backend.dto.request;
+package com.novarecruit.backend.dto.Area;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

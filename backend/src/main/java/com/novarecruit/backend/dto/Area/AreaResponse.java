@@ -1,4 +1,4 @@
-package com.novarecruit.backend.dto.response;
+package com.novarecruit.backend.dto.Area;
 
 import lombok.Builder;
 import lombok.Getter;

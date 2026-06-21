@@ -1,7 +1,7 @@
 package com.novarecruit.backend.controller;
 
-import com.novarecruit.backend.dto.request.AreaRequest;
-import com.novarecruit.backend.dto.response.AreaResponse;
+import com.novarecruit.backend.dto.Area.AreaResponse;
+import com.novarecruit.backend.dto.Area.AreaRequest;
 import com.novarecruit.backend.service.AreaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
