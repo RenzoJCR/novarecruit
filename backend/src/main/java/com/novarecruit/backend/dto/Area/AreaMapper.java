@@ -28,7 +28,7 @@ public class AreaMapper {
 		return Area.builder()
 				.nombre(normalize(request.getNombre()))
 				.descripcion(normalize(request.getDescripcion()))
-				.estado(request.getEstado() != null ? request.getEstado() : true)
+				.estado(request.getEstado() == null || request.getEstado())
 				.build();
 	}
 
@@ -46,7 +46,12 @@ public class AreaMapper {
 	}
 
 	private String normalize(String value) {
-		return value != null ? value.trim() : null;
+		if (value == null) {
+			return null;
+		}
+
+		String normalizedValue = value.trim();
+		return normalizedValue.isEmpty() ? null : normalizedValue;
 	}
 
 }

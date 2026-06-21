@@ -33,7 +33,7 @@ public class AreaService {
     }
 
     public AreaResponse crearArea(AreaRequest request) {
-        String nombreNormalizado = request.getNombre().trim();
+        String nombreNormalizado = normalizarNombre(request.getNombre());
 
         if (areaRepository.existsByNombreIgnoreCase(nombreNormalizado)) {
             throw new BusinessException("Ya existe un área registrada con ese nombre.");
@@ -49,7 +49,7 @@ public class AreaService {
     public AreaResponse actualizarArea(Long id, AreaRequest request) {
         Area area = buscarAreaPorId(id);
 
-        String nombreNormalizado = request.getNombre().trim();
+        String nombreNormalizado = normalizarNombre(request.getNombre());
 
         if (areaRepository.existsByNombreIgnoreCaseAndIdNot(nombreNormalizado, id)) {
             throw new BusinessException("Ya existe otra área registrada con ese nombre.");
@@ -72,5 +72,13 @@ public class AreaService {
     private Area buscarAreaPorId(Long id) {
         return areaRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("No se encontró el área solicitada."));
+    }
+
+    private String normalizarNombre(String nombre) {
+        if (nombre == null || nombre.trim().isEmpty()) {
+            throw new BusinessException("El nombre del área es obligatorio.");
+        }
+
+        return nombre.trim();
     }
 }

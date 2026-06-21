@@ -1,5 +1,7 @@
 package com.novarecruit.backend.exception;
 
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -32,6 +34,36 @@ public class GlobalExceptionHandler {
         }
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, String>> handleConstraintViolationException(
+            ConstraintViolationException exception
+    ) {
+        Map<String, String> errors = new HashMap<>();
+
+        exception.getConstraintViolations().forEach(violation ->
+                errors.put(violation.getPropertyPath().toString(), violation.getMessage())
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolationException(
+            DataIntegrityViolationException exception
+    ) {
+        Map<String, String> response = new HashMap<>();
+        Throwable rootCause = exception.getMostSpecificCause();
+        String rootMessage = rootCause != null ? rootCause.getMessage() : exception.getMessage();
+
+        if (rootMessage != null && rootMessage.toLowerCase().contains("duplicate")) {
+            response.put("message", "Ya existe un registro con esos datos.");
+        } else {
+            response.put("message", "No se pudo guardar la información porque viola una restricción de integridad.");
+        }
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(RuntimeException.class)
