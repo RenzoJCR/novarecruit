@@ -1,100 +1,77 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
-  Clock,
+  Eye,
   RefreshCw,
   Search,
   UserCheck,
   UserX,
-  XCircle,
+  X,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { postulacionService } from "../../services/postulacionService.js";
-import { logService } from "../../services/logService.js";
+
+function getEstadoVisible(estado) {
+  const labels = {
+    POSTULADO: "Pendiente",
+    EN_REVISION_RRHH: "En revisión",
+    APROBADO_RRHH: "Listo para evaluación",
+    RECHAZADO_RRHH: "No continúa",
+    EVALUACION_PENDIENTE: "En evaluación",
+    EVALUACION_COMPLETADA: "Evaluación completada",
+    APROBADO_TECNICO: "Apto para selección",
+    RECHAZADO_TECNICO: "No continúa",
+    SELECCIONADO: "Seleccionado",
+    NO_SELECCIONADO: "No seleccionado",
+  };
+
+  return labels[estado] || estado || "Sin estado";
+}
+
+function statusClass(estado) {
+  const styles = {
+    POSTULADO: "bg-amber-50 text-amber-700 border-amber-200",
+    EN_REVISION_RRHH: "bg-sky-50 text-sky-700 border-sky-200",
+    APROBADO_RRHH: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    RECHAZADO_RRHH: "bg-rose-50 text-rose-700 border-rose-200",
+    EVALUACION_PENDIENTE: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    EVALUACION_COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
+    APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
+    SELECCIONADO: "bg-amber-50 text-amber-700 border-amber-200",
+    NO_SELECCIONADO: "bg-slate-50 text-slate-600 border-slate-200",
+  };
+
+  return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
+}
+
+function formatDateTime(value) {
+  if (!value) return "Sin fecha";
+
+  return new Date(value).toLocaleString("es-PE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function canReview(estado) {
+  return ["POSTULADO", "EN_REVISION_RRHH"].includes(estado);
+}
 
 function RrhhApplications() {
   const [postulaciones, setPostulaciones] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [selectedApplication, setSelectedApplication] = useState(null);
 
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("Todos");
-  const [reviewComments, setReviewComments] = useState({});
+  const [reviewForms, setReviewForms] = useState({});
 
-  const [loadingPostulaciones, setLoadingPostulaciones] = useState(true);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [reviewingId, setReviewingId] = useState(null);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
-
-  const filteredPostulaciones = useMemo(() => {
-    const value = search.toLowerCase().trim();
-
-    return postulaciones.filter((postulacion) => {
-      const matchesSearch =
-        postulacion.postulanteNombre?.toLowerCase().includes(value) ||
-        postulacion.postulanteCorreo?.toLowerCase().includes(value) ||
-        postulacion.vacanteTitulo?.toLowerCase().includes(value) ||
-        postulacion.areaNombre?.toLowerCase().includes(value);
-
-      const matchesStatus =
-        selectedStatus === "Todos" || postulacion.estado === selectedStatus;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [postulaciones, search, selectedStatus]);
-
-  const pendingCount = postulaciones.filter(
-    (postulacion) =>
-      postulacion.estado === "POSTULADO" ||
-      postulacion.estado === "EN_REVISION_RRHH"
-  ).length;
-
-  const approvedCount = postulaciones.filter(
-    (postulacion) => postulacion.estado === "APROBADO_RRHH"
-  ).length;
-
-  const rejectedCount = postulaciones.filter(
-    (postulacion) => postulacion.estado === "RECHAZADO_RRHH"
-  ).length;
-
-  const loadPostulaciones = async () => {
-    try {
-      setLoadingPostulaciones(true);
-      const data = await postulacionService.getAll();
-      setPostulaciones(data);
-    } catch (error) {
-      showMessage(
-        error.userMessage || "No se pudieron cargar las postulaciones.",
-        "error"
-      );
-    } finally {
-      setLoadingPostulaciones(false);
-    }
-  };
-
-  const loadLogs = async () => {
-    try {
-      setLoadingLogs(true);
-      const data = await logService.getLatest();
-      const applicationLogs = data
-        .filter((log) => log.modulo === "POSTULACIONES")
-        .slice(0, 5);
-      setLogs(applicationLogs);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoadingLogs(false);
-    }
-  };
-
-  const refreshData = async () => {
-    await Promise.all([loadPostulaciones(), loadLogs()]);
-  };
-
-  useEffect(() => {
-    refreshData();
-  }, []);
 
   const showMessage = (text, type = "info") => {
     setMessage(text);
@@ -105,79 +82,128 @@ function RrhhApplications() {
     }, 4000);
   };
 
-  const handleCommentChange = (postulacionId, value) => {
-    setReviewComments((prev) => ({
+  const loadPostulaciones = async () => {
+    try {
+      setLoading(true);
+
+      const data = await postulacionService.getAll();
+      setPostulaciones(data);
+
+      const initialForms = {};
+      data.forEach((item) => {
+        initialForms[item.id] = {
+          comentarioRrhh: item.comentarioRrhh || "",
+        };
+      });
+
+      setReviewForms(initialForms);
+
+      if (selectedApplication) {
+        const updatedSelected = data.find(
+          (item) => item.id === selectedApplication.id
+        );
+        setSelectedApplication(updatedSelected || null);
+      }
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudieron cargar las postulaciones.",
+        "error"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPostulaciones();
+  }, []);
+
+  const filteredPostulaciones = useMemo(() => {
+    const value = search.toLowerCase().trim();
+
+    return postulaciones.filter((item) => {
+      const estadoVisible = getEstadoVisible(item.estado).toLowerCase();
+
+      const matchesSearch =
+        item.postulanteNombre?.toLowerCase().includes(value) ||
+        item.postulanteCorreo?.toLowerCase().includes(value) ||
+        item.vacanteTitulo?.toLowerCase().includes(value) ||
+        item.areaNombre?.toLowerCase().includes(value) ||
+        estadoVisible.includes(value);
+
+      const matchesStatus =
+        selectedStatus === "Todos" || item.estado === selectedStatus;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [postulaciones, search, selectedStatus]);
+
+  const pendientes = postulaciones.filter((item) =>
+    ["POSTULADO", "EN_REVISION_RRHH"].includes(item.estado)
+  ).length;
+
+  const aprobadas = postulaciones.filter(
+    (item) => item.estado === "APROBADO_RRHH"
+  ).length;
+
+  const rechazadas = postulaciones.filter(
+    (item) => item.estado === "RECHAZADO_RRHH"
+  ).length;
+
+  const handleReviewFormChange = (id, value) => {
+    setReviewForms((prev) => ({
       ...prev,
-      [postulacionId]: value,
+      [id]: {
+        ...prev[id],
+        comentarioRrhh: value,
+      },
     }));
   };
 
-  const handleReview = async (postulacion, approved) => {
-    const comentario = reviewComments[postulacion.id] || "";
+  const validateReview = (item) => {
+    const form = reviewForms[item.id] || {};
 
-    if (!comentario.trim()) {
-      showMessage("Agrega un comentario de revisión antes de continuar.", "error");
+    if (!form.comentarioRrhh?.trim()) {
+      return "Agrega un comentario breve para sustentar la decisión.";
+    }
+
+    return null;
+  };
+
+  const handleReview = async (item, approved) => {
+    const validationError = validateReview(item);
+
+    if (validationError) {
+      showMessage(validationError, "error");
       return;
     }
 
+    const form = reviewForms[item.id];
+
     try {
-      await postulacionService.revisarRrhh(postulacion.id, {
+      setReviewingId(item.id);
+
+      await postulacionService.reviewRrhh(item.id, {
         aprobado: approved,
-        comentarioRrhh: comentario.trim(),
+        comentarioRrhh: form.comentarioRrhh.trim(),
       });
 
       showMessage(
         approved
-          ? "Postulación aprobada por RRHH."
-          : "Postulación rechazada por RRHH.",
+          ? "Postulación aprobada para evaluación técnica."
+          : "Postulación rechazada correctamente.",
         "success"
       );
 
-      await refreshData();
+      await loadPostulaciones();
     } catch (error) {
       showMessage(
-        error.userMessage || "No se pudo revisar la postulación.",
+        error.userMessage || "No se pudo registrar la revisión.",
         "error"
       );
+    } finally {
+      setReviewingId(null);
     }
-  };
-
-  const formatDateTime = (value) => {
-    if (!value) return "Sin fecha";
-
-    return new Date(value).toLocaleString("es-PE", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
-  };
-
-  const statusClass = (status) => {
-    const styles = {
-      POSTULADO: "bg-sky-50 text-sky-700 border-sky-200",
-      EN_REVISION_RRHH: "bg-amber-50 text-amber-700 border-amber-200",
-      APROBADO_RRHH: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      RECHAZADO_RRHH: "bg-rose-50 text-rose-700 border-rose-200",
-      EVALUACION_PENDIENTE: "bg-indigo-50 text-indigo-700 border-indigo-200",
-      EVALUACION_COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
-      APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
-      SELECCIONADO: "bg-emerald-100 text-emerald-800 border-emerald-300",
-      NO_SELECCIONADO: "bg-slate-50 text-slate-600 border-slate-200",
-    };
-
-    return styles[status] || "bg-slate-50 text-slate-600 border-slate-200";
-  };
-
-  const statusIcon = (status) => {
-    if (status?.includes("RECHAZADO")) return <XCircle size={18} />;
-    if (status?.includes("APROBADO") || status === "SELECCIONADO") {
-      return <CheckCircle2 size={18} />;
-    }
-    return <Clock size={18} />;
-  };
-
-  const canReview = (status) => {
-    return status === "POSTULADO" || status === "EN_REVISION_RRHH";
   };
 
   const alertStyles = {
@@ -189,50 +215,52 @@ function RrhhApplications() {
   return (
     <div>
       <SectionHeader
-        title="Postulaciones recibidas"
-        description="Revisa postulantes, valida requisitos y decide si pasan a evaluación técnica."
+        title="Postulaciones"
+        description="Revisa candidatos postulados y decide quiénes pasan a evaluación técnica."
       />
 
       {message && (
         <div
-          className={`mb-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+          className={`mb-5 border rounded-2xl px-4 py-3 text-sm font-semibold ${alertStyles[messageType]}`}
         >
           {message}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-sm text-slate-500 font-semibold">Pendientes</p>
-          <p className="text-4xl font-black text-sky-600 mt-2">
-            {pendingCount}
+          <p className="text-3xl font-black text-amber-600 mt-1">
+            {pendientes}
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">Aprobadas RRHH</p>
-          <p className="text-4xl font-black text-emerald-600 mt-2">
-            {approvedCount}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">
+            Listas para evaluación
+          </p>
+          <p className="text-3xl font-black text-emerald-600 mt-1">
+            {aprobadas}
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">Rechazadas</p>
-          <p className="text-4xl font-black text-rose-600 mt-2">
-            {rejectedCount}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">No continúan</p>
+          <p className="text-3xl font-black text-rose-600 mt-1">
+            {rechazadas}
           </p>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white border border-slate-200 rounded-[2rem] p-5 mb-8 grid grid-cols-1 md:grid-cols-[1fr_260px_auto] gap-4 shadow-sm">
-        <div className="flex items-center gap-3 border border-slate-300 rounded-2xl px-4 py-3 bg-white focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100">
-          <Search size={18} className="text-emerald-600" />
+      <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_230px_auto] gap-3">
+        <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-100">
+          <Search size={18} className="text-amber-600" />
           <input
             type="text"
-            placeholder="Buscar por postulante, correo, vacante o área..."
+            placeholder="Buscar candidato, correo, vacante o área..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full outline-none bg-transparent text-slate-900"
+            className="w-full outline-none bg-transparent text-sm text-slate-900"
           />
         </div>
 
@@ -241,172 +269,266 @@ function RrhhApplications() {
           onChange={(e) => setSelectedStatus(e.target.value)}
           className="input-light"
         >
-          <option value="Todos">Todos los estados</option>
-          <option value="POSTULADO">Postulado</option>
-          <option value="APROBADO_RRHH">Aprobado RRHH</option>
-          <option value="RECHAZADO_RRHH">Rechazado RRHH</option>
-          <option value="EVALUACION_PENDIENTE">Evaluación pendiente</option>
+          <option value="Todos">Todos</option>
+          <option value="POSTULADO">Pendientes</option>
+          <option value="EN_REVISION_RRHH">En revisión</option>
+          <option value="APROBADO_RRHH">Listos para evaluación</option>
+          <option value="RECHAZADO_RRHH">No continúan</option>
+          <option value="EVALUACION_PENDIENTE">En evaluación</option>
+          <option value="EVALUACION_COMPLETADA">Evaluación completada</option>
+          <option value="SELECCIONADO">Seleccionados</option>
         </select>
 
         <button
-          onClick={refreshData}
-          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-2xl font-black"
+          type="button"
+          onClick={loadPostulaciones}
+          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-black"
         >
-          <RefreshCw size={18} />
+          <RefreshCw size={17} />
           Actualizar
         </button>
-      </div>
+      </section>
 
-      {loadingPostulaciones ? (
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center">
-          <h2 className="text-2xl font-black text-slate-900">
+      {loading ? (
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <h2 className="text-xl font-black text-slate-900">
             Cargando postulaciones...
           </h2>
+          <p className="text-slate-500 mt-1">Un momento por favor.</p>
         </div>
       ) : filteredPostulaciones.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center">
-          <h2 className="text-2xl font-black text-slate-900">
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <h2 className="text-xl font-black text-slate-900">
             No hay postulaciones para mostrar
           </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Ajusta los filtros o espera nuevas postulaciones.
+          </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {filteredPostulaciones.map((postulacion) => (
-            <article
-              key={postulacion.id}
-              className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-                <div>
-                  <h3 className="text-2xl font-black text-slate-900">
-                    {postulacion.postulanteNombre}
-                  </h3>
-                  <p className="text-slate-500 mt-1">
-                    {postulacion.postulanteCorreo}
-                  </p>
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[1.4fr_1.2fr_1fr_1fr_170px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+            <span>Candidato</span>
+            <span>Vacante</span>
+            <span>Área</span>
+            <span>Estado</span>
+            <span className="text-right">Acción</span>
+          </div>
 
-                  <p className="text-slate-700 font-bold mt-4">
-                    {postulacion.vacanteTitulo}
+          <div className="divide-y divide-slate-200">
+            {filteredPostulaciones.map((postulacion) => (
+              <div
+                key={postulacion.id}
+                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.2fr_1fr_1fr_170px] gap-4 px-5 py-4 items-center"
+              >
+                <div>
+                  <p className="font-black text-slate-900">
+                    {postulacion.postulanteNombre}
                   </p>
                   <p className="text-sm text-slate-500">
-                    Área: {postulacion.areaNombre} · Postuló:{" "}
+                    {postulacion.postulanteCorreo}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
                     {formatDateTime(postulacion.fechaPostulacion)}
                   </p>
                 </div>
 
-                <span
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-black ${statusClass(
-                    postulacion.estado
-                  )}`}
-                >
-                  {statusIcon(postulacion.estado)}
-                  {postulacion.estado}
-                </span>
+                <div>
+                  <p className="font-bold text-slate-800">
+                    {postulacion.vacanteTitulo}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-slate-600">
+                    {postulacion.areaNombre}
+                  </p>
+                </div>
+
+                <div>
+                  <span
+                    className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                      postulacion.estado
+                    )}`}
+                  >
+                    {getEstadoVisible(postulacion.estado)}
+                  </span>
+                </div>
+
+                <div className="flex justify-start lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedApplication(postulacion)}
+                    className="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-xl text-sm font-bold"
+                  >
+                    <Eye size={16} />
+                    Ver
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {selectedApplication && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center px-4 py-8">
+          <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-xl">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  Detalle de postulación
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {selectedApplication.postulanteNombre} ·{" "}
+                  {selectedApplication.vacanteTitulo}
+                </p>
               </div>
 
-              <div className="mt-6">
-                <h4 className="font-black text-slate-900 mb-3">
+              <button
+                type="button"
+                onClick={() => setSelectedApplication(null)}
+                className="w-9 h-9 rounded-xl border border-slate-300 hover:bg-slate-50 flex items-center justify-center text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">Candidato</p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {selectedApplication.postulanteNombre}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {selectedApplication.postulanteCorreo}
+                  </p>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">Vacante</p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {selectedApplication.vacanteTitulo}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {selectedApplication.areaNombre}
+                  </p>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="font-black text-slate-900 mb-3">
                   Habilidades declaradas
-                </h4>
+                </h3>
 
-                <div className="flex flex-wrap gap-2">
-                  {postulacion.habilidades?.map((item) => (
-                    <span
-                      key={item.id}
-                      className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold"
-                    >
-                      {item.habilidadNombre} · {item.nivelPostulante} ·{" "}
-                      {item.aniosExperiencia || 0} año(s)
-                    </span>
-                  ))}
+                {selectedApplication.habilidades?.length === 0 ? (
+                  <div className="border border-slate-200 rounded-xl p-4 text-slate-500">
+                    No hay habilidades registradas.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedApplication.habilidades?.map((item) => (
+                      <div
+                        key={item.id}
+                        className="border border-slate-200 rounded-xl p-4"
+                      >
+                        <p className="font-black text-slate-900">
+                          {item.habilidadNombre}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">
+                          Nivel: {item.nivelPostulante}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          Experiencia: {item.aniosExperiencia || 0} año(s)
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="border border-slate-200 rounded-xl p-4">
+                <h3 className="font-black text-slate-900 mb-3">
+                  Revisión de RRHH
+                </h3>
+
+                <div className="mb-4">
+                  <span
+                    className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                      selectedApplication.estado
+                    )}`}
+                  >
+                    {getEstadoVisible(selectedApplication.estado)}
+                  </span>
                 </div>
-              </div>
 
-              {postulacion.comentarioRrhh && (
-                <div className="mt-6 rounded-3xl bg-slate-50 border border-slate-200 p-4">
-                  <p className="font-black text-slate-900">
-                    Comentario de RRHH
-                  </p>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {postulacion.comentarioRrhh}
-                  </p>
-                </div>
-              )}
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Comentario
+                </label>
 
-              {canReview(postulacion.estado) && (
-                <div className="mt-6 rounded-3xl bg-slate-50 border border-slate-200 p-4">
-                  <label className="block text-sm font-black text-slate-700 mb-2">
-                    Comentario de revisión
-                  </label>
+                <textarea
+                  value={
+                    reviewForms[selectedApplication.id]?.comentarioRrhh || ""
+                  }
+                  onChange={(e) =>
+                    handleReviewFormChange(
+                      selectedApplication.id,
+                      e.target.value
+                    )
+                  }
+                  disabled={!canReview(selectedApplication.estado)}
+                  placeholder="Ej: Cumple con los requisitos básicos para pasar a evaluación técnica."
+                  className="w-full min-h-24 border border-slate-300 rounded-xl p-3 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 disabled:bg-slate-100 disabled:text-slate-500"
+                />
 
-                  <textarea
-                    value={reviewComments[postulacion.id] || ""}
-                    onChange={(e) =>
-                      handleCommentChange(postulacion.id, e.target.value)
-                    }
-                    placeholder="Ej: Cumple con los requisitos mínimos y puede pasar a evaluación técnica."
-                    className="w-full min-h-24 border border-slate-300 rounded-2xl p-4 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
+                {selectedApplication.comentarioRrhh &&
+                  !canReview(selectedApplication.estado) && (
+                    <p className="text-sm text-slate-500 mt-3">
+                      Comentario registrado:{" "}
+                      <strong>{selectedApplication.comentarioRrhh}</strong>
+                    </p>
+                  )}
 
-                  <div className="flex flex-col md:flex-row gap-3 mt-4">
+                {canReview(selectedApplication.estado) ? (
+                  <div className="flex flex-col md:flex-row gap-2 mt-4">
                     <button
                       type="button"
-                      onClick={() => handleReview(postulacion, true)}
-                      className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-5 py-3 rounded-2xl font-black"
+                      disabled={reviewingId === selectedApplication.id}
+                      onClick={() => handleReview(selectedApplication, true)}
+                      className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2.5 rounded-xl text-sm font-black"
                     >
-                      <UserCheck size={18} />
+                      <UserCheck size={17} />
                       Aprobar para evaluación
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => handleReview(postulacion, false)}
-                      className="inline-flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-5 py-3 rounded-2xl font-black"
+                      disabled={reviewingId === selectedApplication.id}
+                      onClick={() => handleReview(selectedApplication, false)}
+                      className="inline-flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white px-4 py-2.5 rounded-xl text-sm font-black"
                     >
-                      <UserX size={18} />
+                      <UserX size={17} />
                       Rechazar
                     </button>
                   </div>
-                </div>
-              )}
-            </article>
-          ))}
+                ) : (
+                  <div className="flex items-start gap-3 mt-4 border border-slate-200 bg-slate-50 rounded-xl p-4">
+                    <CheckCircle2
+                      size={20}
+                      className="text-slate-500 shrink-0 mt-1"
+                    />
+                    <p className="text-sm text-slate-600">
+                      Esta postulación ya fue revisada o avanzó a otra etapa del
+                      proceso.
+                    </p>
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
         </div>
       )}
-
-      <section className="mt-8 bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-        <h2 className="text-xl font-black text-slate-900">
-          Logs recientes de postulaciones
-        </h2>
-
-        {loadingLogs ? (
-          <p className="text-slate-500 mt-3">Cargando logs...</p>
-        ) : logs.length === 0 ? (
-          <p className="text-slate-500 mt-3">
-            No hay logs recientes de postulaciones.
-          </p>
-        ) : (
-          <div className="space-y-3 mt-5">
-            {logs.map((log) => (
-              <div
-                key={log.id}
-                className="rounded-2xl bg-slate-50 border border-slate-200 p-4"
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <p className="font-black text-slate-900">{log.accion}</p>
-                  <span className="text-xs text-slate-400">
-                    {formatDateTime(log.fechaHora)}
-                  </span>
-                </div>
-
-                <p className="text-sm text-slate-500 mt-1">
-                  {log.descripcion}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }

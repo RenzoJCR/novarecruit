@@ -11,13 +11,13 @@ export const postulacionService = {
     return response.data;
   },
 
-  async getByVacante(vacanteId) {
-    const response = await api.get(`/postulaciones/vacante/${vacanteId}`);
+  async getByUsuario(usuarioId) {
+    const response = await api.get(`/postulaciones/usuario/${usuarioId}`);
     return response.data;
   },
 
-  async getByUsuario(usuarioId) {
-    const response = await api.get(`/postulaciones/usuario/${usuarioId}`);
+  async getByVacante(vacanteId) {
+    const response = await api.get(`/postulaciones/vacante/${vacanteId}`);
     return response.data;
   },
 
@@ -26,11 +26,8 @@ export const postulacionService = {
     return response.data;
   },
 
-  async revisarRrhh(id, revisionData) {
-    const response = await api.patch(
-      `/postulaciones/${id}/revision-rrhh`,
-      revisionData
-    );
+  async reviewRrhh(id, data) {
+    const response = await api.patch(`/postulaciones/${id}/revision-rrhh`, data);
     return response.data;
   },
 };

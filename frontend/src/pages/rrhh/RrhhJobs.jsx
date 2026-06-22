@@ -1,44 +1,108 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Briefcase,
-  Plus,
-  Search,
-  RefreshCw,
-  MapPin,
   Calendar,
-  DollarSign,
-  Layers,
+  Eye,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Search,
   Trash2,
-  Activity,
+  X,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { vacanteService } from "../../services/vacanteService.js";
-import { logService } from "../../services/logService.js";
+
+function getEstadoVisible(estado) {
+  const labels = {
+    ACTIVA: "Activa",
+    EN_PROCESO: "En proceso",
+    CERRADA: "Cerrada",
+    CANCELADA: "Cancelada",
+  };
+
+  return labels[estado] || estado || "Sin estado";
+}
+
+function statusClass(estado) {
+  const styles = {
+    ACTIVA: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    EN_PROCESO: "bg-amber-50 text-amber-700 border-amber-200",
+    CERRADA: "bg-slate-50 text-slate-600 border-slate-200",
+    CANCELADA: "bg-rose-50 text-rose-700 border-rose-200",
+  };
+
+  return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
+}
+
+function formatDate(value) {
+  if (!value) return "Sin fecha";
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString("es-PE", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function formatMoney(value) {
+  if (value === null || value === undefined) return "No especificado";
+
+  return Number(value).toLocaleString("es-PE", {
+    style: "currency",
+    currency: "PEN",
+  });
+}
 
 function RrhhJobs() {
-  const navigate = useNavigate();
-
   const [vacantes, setVacantes] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [selectedVacante, setSelectedVacante] = useState(null);
+
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("Todos");
 
-  const [loadingVacantes, setLoadingVacantes] = useState(true);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [cancelingId, setCancelingId] = useState(null);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
+
+  const loadVacantes = async () => {
+    try {
+      setLoading(true);
+
+      const data = await vacanteService.getAll();
+      setVacantes(data);
+
+      if (selectedVacante) {
+        const updated = data.find((item) => item.id === selectedVacante.id);
+        setSelectedVacante(updated || null);
+      }
+    } catch (error) {
+      showMessage(error.userMessage || "No se pudieron cargar las vacantes.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVacantes();
+  }, []);
 
   const filteredVacantes = useMemo(() => {
     const value = search.toLowerCase().trim();
 
     return vacantes.filter((vacante) => {
+      const estadoVisible = getEstadoVisible(vacante.estado).toLowerCase();
+
       const matchesSearch =
         vacante.titulo?.toLowerCase().includes(value) ||
         vacante.areaNombre?.toLowerCase().includes(value) ||
-        vacante.modalidad?.toLowerCase().includes(value);
+        vacante.modalidad?.toLowerCase().includes(value) ||
+        vacante.ubicacion?.toLowerCase().includes(value) ||
+        estadoVisible.includes(value);
 
       const matchesStatus =
         selectedStatus === "Todos" || vacante.estado === selectedStatus;
@@ -47,51 +111,9 @@ function RrhhJobs() {
     });
   }, [vacantes, search, selectedStatus]);
 
-  const activeVacantes = vacantes.filter(
-    (vacante) => vacante.estado === "ACTIVA"
-  ).length;
-
-  const closedVacantes = vacantes.filter(
-    (vacante) => vacante.estado === "CERRADA"
-  ).length;
-
-  const loadVacantes = async () => {
-    try {
-      setLoadingVacantes(true);
-      const data = await vacanteService.getAll();
-      setVacantes(data);
-    } catch (error) {
-      showMessage(
-        error.userMessage || "No se pudieron cargar las vacantes.",
-        "error"
-      );
-    } finally {
-      setLoadingVacantes(false);
-    }
-  };
-
-  const loadLogs = async () => {
-    try {
-      setLoadingLogs(true);
-      const data = await logService.getLatest();
-      const vacancyLogs = data
-        .filter((log) => log.modulo === "VACANTES")
-        .slice(0, 5);
-      setLogs(vacancyLogs);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoadingLogs(false);
-    }
-  };
-
-  const refreshData = async () => {
-    await Promise.all([loadVacantes(), loadLogs()]);
-  };
-
-  useEffect(() => {
-    refreshData();
-  }, []);
+  const activas = vacantes.filter((item) => item.estado === "ACTIVA").length;
+  const enProceso = vacantes.filter((item) => item.estado === "EN_PROCESO").length;
+  const cerradas = vacantes.filter((item) => item.estado === "CERRADA").length;
 
   const showMessage = (text, type = "info") => {
     setMessage(text);
@@ -99,65 +121,31 @@ function RrhhJobs() {
 
     setTimeout(() => {
       setMessage("");
-    }, 3500);
+    }, 4000);
   };
 
-  const handleCancelVacante = async (vacante) => {
+  const handleCancel = async (vacante) => {
     const confirmed = window.confirm(
-      `¿Seguro que deseas cancelar la vacante "${vacante.titulo}"?`
+      `¿Deseas cancelar la vacante "${vacante.titulo}"?`
     );
 
     if (!confirmed) return;
 
     try {
+      setCancelingId(vacante.id);
       await vacanteService.cancel(vacante.id);
+
       showMessage("Vacante cancelada correctamente.", "success");
-      await refreshData();
+      await loadVacantes();
     } catch (error) {
-      showMessage(
-        error.userMessage || "No se pudo cancelar la vacante.",
-        "error"
-      );
+      showMessage(error.userMessage || "No se pudo cancelar la vacante.", "error");
+    } finally {
+      setCancelingId(null);
     }
   };
 
-  const formatDate = (value) => {
-    if (!value) return "Sin fecha";
-
-    return new Date(value).toLocaleDateString("es-PE", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    });
-  };
-
-  const formatDateTime = (value) => {
-    if (!value) return "Sin fecha";
-
-    return new Date(value).toLocaleString("es-PE", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
-  };
-
-  const formatMoney = (value) => {
-    if (value === null || value === undefined) return "No especificado";
-
-    return Number(value).toLocaleString("es-PE", {
-      style: "currency",
-      currency: "PEN",
-    });
-  };
-
-  const statusClass = (status) => {
-    const styles = {
-      ACTIVA: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      EN_PROCESO: "bg-sky-50 text-sky-700 border-sky-200",
-      CERRADA: "bg-slate-50 text-slate-600 border-slate-200",
-      CANCELADA: "bg-rose-50 text-rose-700 border-rose-200",
-    };
-
-    return styles[status] || "bg-slate-50 text-slate-600 border-slate-200";
+  const canCancel = (vacante) => {
+    return vacante.estado !== "CERRADA" && vacante.estado !== "CANCELADA";
   };
 
   const alertStyles = {
@@ -169,59 +157,59 @@ function RrhhJobs() {
   return (
     <div>
       <SectionHeader
-        title="Gestión de vacantes"
-        description="Administra las vacantes creadas por Recursos Humanos y sus requisitos técnicos."
+        title="Vacantes"
+        description="Gestiona las vacantes publicadas para el proceso de reclutamiento."
         action={
-          <button
-            onClick={() => navigate("/rrhh/vacantes/create")}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white px-5 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20"
+          <Link
+            to="/rrhh/vacantes/create"
+            className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl text-sm font-black"
           >
-            <Plus size={18} />
-            Crear vacante
-          </button>
+            <Plus size={17} />
+            Nueva vacante
+          </Link>
         }
       />
 
       {message && (
         <div
-          className={`mb-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+          className={`mb-5 border rounded-2xl px-4 py-3 text-sm font-semibold ${alertStyles[messageType]}`}
         >
           {message}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-        <div className="bg-white/95 border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">Vacantes</p>
-          <p className="text-4xl font-black text-slate-900 mt-2">
-            {vacantes.length}
-          </p>
-        </div>
-
-        <div className="bg-white/95 border border-slate-200 rounded-3xl p-5 shadow-sm">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-sm text-slate-500 font-semibold">Activas</p>
-          <p className="text-4xl font-black text-emerald-600 mt-2">
-            {activeVacantes}
+          <p className="text-3xl font-black text-emerald-600 mt-1">
+            {activas}
           </p>
         </div>
 
-        <div className="bg-white/95 border border-slate-200 rounded-3xl p-5 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">En proceso</p>
+          <p className="text-3xl font-black text-amber-600 mt-1">
+            {enProceso}
+          </p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-sm text-slate-500 font-semibold">Cerradas</p>
-          <p className="text-4xl font-black text-sky-600 mt-2">
-            {closedVacantes}
+          <p className="text-3xl font-black text-slate-700 mt-1">
+            {cerradas}
           </p>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white/95 border border-slate-200 rounded-[2rem] p-5 mb-8 grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-4 shadow-sm">
-        <div className="flex items-center gap-3 border border-slate-300 rounded-2xl px-4 py-3 bg-white focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100">
-          <Search size={18} className="text-emerald-600" />
+      <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3">
+        <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-100">
+          <Search size={18} className="text-amber-600" />
           <input
             type="text"
-            placeholder="Buscar por título, área o modalidad..."
+            placeholder="Buscar por título, área, modalidad o ubicación..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full outline-none bg-transparent text-slate-900"
+            className="w-full outline-none bg-transparent text-sm text-slate-900"
           />
         </div>
 
@@ -230,178 +218,233 @@ function RrhhJobs() {
           onChange={(e) => setSelectedStatus(e.target.value)}
           className="input-light"
         >
-          <option value="Todos">Todos los estados</option>
-          <option value="ACTIVA">Activa</option>
+          <option value="Todos">Todos</option>
+          <option value="ACTIVA">Activas</option>
           <option value="EN_PROCESO">En proceso</option>
-          <option value="CERRADA">Cerrada</option>
-          <option value="CANCELADA">Cancelada</option>
+          <option value="CERRADA">Cerradas</option>
+          <option value="CANCELADA">Canceladas</option>
         </select>
 
         <button
           type="button"
-          onClick={refreshData}
-          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-2xl font-black"
+          onClick={loadVacantes}
+          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-black"
         >
-          <RefreshCw size={18} />
+          <RefreshCw size={17} />
           Actualizar
         </button>
-      </div>
+      </section>
 
-      {loadingVacantes ? (
-        <div className="bg-white/95 border border-slate-200 rounded-[2rem] p-10 text-center shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900">
+      {loading ? (
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <h2 className="text-xl font-black text-slate-900">
             Cargando vacantes...
           </h2>
-          <p className="text-slate-500 mt-2">
-            Consultando información desde el backend.
-          </p>
+          <p className="text-slate-500 mt-1">Un momento por favor.</p>
         </div>
       ) : filteredVacantes.length === 0 ? (
-        <div className="bg-white/95 border border-slate-200 rounded-[2rem] p-10 text-center shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900">
-            No se encontraron vacantes
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <Briefcase size={36} className="mx-auto text-amber-600" />
+          <h2 className="text-xl font-black text-slate-900 mt-3">
+            No hay vacantes para mostrar
           </h2>
-          <p className="text-slate-500 mt-2">
-            Crea una nueva vacante o cambia los filtros de búsqueda.
+          <p className="text-sm text-slate-500 mt-1">
+            Crea una nueva vacante o ajusta los filtros.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {filteredVacantes.map((vacante) => (
-            <article
-              key={vacante.id}
-              className="bg-white/95 border border-slate-200 rounded-[2rem] p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all"
-            >
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_170px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+            <span>Vacante</span>
+            <span>Área</span>
+            <span>Cierre</span>
+            <span>Estado</span>
+            <span className="text-right">Acción</span>
+          </div>
+
+          <div className="divide-y divide-slate-200">
+            {filteredVacantes.map((vacante) => (
+              <div
+                key={vacante.id}
+                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr_0.8fr_0.8fr_170px] gap-4 px-5 py-4 items-center"
+              >
                 <div>
-                  <span className="inline-flex px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-black mb-3">
+                  <p className="font-black text-slate-900">{vacante.titulo}</p>
+                  <div className="flex flex-wrap gap-3 text-sm text-slate-500 mt-1">
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin size={14} />
+                      {vacante.modalidad}
+                    </span>
+                    <span>{vacante.ubicacion || "Sin ubicación"}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold text-slate-800">
                     {vacante.areaNombre}
-                  </span>
-
-                  <h3 className="text-2xl font-black text-slate-900">
-                    {vacante.titulo}
-                  </h3>
-
-                  <p className="text-slate-500 mt-2 leading-relaxed line-clamp-3">
-                    {vacante.descripcion}
                   </p>
                 </div>
 
-                <span
-                  className={`inline-flex px-3 py-1.5 rounded-full border text-xs font-black ${statusClass(
-                    vacante.estado
-                  )}`}
-                >
-                  {vacante.estado}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <MapPin size={17} className="text-emerald-600" />
-                  {vacante.modalidad} · {vacante.ubicacion || "Sin ubicación"}
+                <div>
+                  <p className="inline-flex items-center gap-1 text-sm text-slate-600">
+                    <Calendar size={15} />
+                    {formatDate(vacante.fechaCierre)}
+                  </p>
                 </div>
 
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <DollarSign size={17} className="text-emerald-600" />
-                  {formatMoney(vacante.salario)}
-                </div>
-
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Calendar size={17} className="text-emerald-600" />
-                  Cierre: {formatDate(vacante.fechaCierre)}
-                </div>
-
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Briefcase size={17} className="text-emerald-600" />
-                  {vacante.nivelExperiencia}
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <h4 className="font-black text-slate-900 mb-3">
-                  Habilidades requeridas
-                </h4>
-
-                <div className="flex flex-wrap gap-2">
-                  {vacante.habilidades?.map((item) => (
-                    <span
-                      key={item.id}
-                      className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200"
-                    >
-                      {item.habilidadNombre} · {item.nivelRequerido}
-                      {item.obligatorio ? " · Oblig." : " · Opc."}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <Layers size={17} className="text-emerald-600" />
-                  Creada por {vacante.rrhhNombre}
-                </div>
-
-                {vacante.estado !== "CANCELADA" &&
-                  vacante.estado !== "CERRADA" && (
-                    <button
-                      type="button"
-                      onClick={() => handleCancelVacante(vacante)}
-                      className="inline-flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-4 py-2 rounded-2xl font-black"
-                    >
-                      <Trash2 size={17} />
-                      Cancelar
-                    </button>
-                  )}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-
-      <section className="mt-8 bg-white/95 border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center">
-            <Activity size={24} />
-          </div>
-
-          <div>
-            <h2 className="text-xl font-black text-slate-900">
-              Actividad reciente de vacantes
-            </h2>
-            <p className="text-sm text-slate-500">
-              Últimos registros generados desde el backend.
-            </p>
-          </div>
-        </div>
-
-        {loadingLogs ? (
-          <p className="text-slate-500">Cargando logs...</p>
-        ) : logs.length === 0 ? (
-          <p className="text-slate-500">No hay logs recientes de vacantes.</p>
-        ) : (
-          <div className="space-y-3">
-            {logs.map((log) => (
-              <div
-                key={log.id}
-                className="rounded-2xl bg-slate-50 border border-slate-200 p-4"
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <p className="font-black text-slate-900">{log.accion}</p>
-
-                  <span className="text-xs text-slate-400">
-                    {formatDateTime(log.fechaHora)}
+                <div>
+                  <span
+                    className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                      vacante.estado
+                    )}`}
+                  >
+                    {getEstadoVisible(vacante.estado)}
                   </span>
                 </div>
 
-                <p className="text-sm text-slate-500 mt-1">
-                  {log.descripcion}
-                </p>
+                <div className="flex justify-start lg:justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVacante(vacante)}
+                    className="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-xl text-sm font-bold"
+                  >
+                    <Eye size={16} />
+                    Ver
+                  </button>
+
+                  {canCancel(vacante) && (
+                    <button
+                      type="button"
+                      disabled={cancelingId === vacante.id}
+                      onClick={() => handleCancel(vacante)}
+                      className="inline-flex items-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:bg-slate-100 text-rose-700 disabled:text-slate-500 px-3 py-2 rounded-xl text-sm font-bold"
+                    >
+                      <Trash2 size={16} />
+                      Cancelar
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
+
+      {selectedVacante && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center px-4 py-8">
+          <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-xl">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  Detalle de vacante
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {selectedVacante.areaNombre}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedVacante(null)}
+                className="w-9 h-9 rounded-xl border border-slate-300 hover:bg-slate-50 flex items-center justify-center text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <section className="border border-slate-200 rounded-xl p-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900">
+                      {selectedVacante.titulo}
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-2">
+                      {selectedVacante.descripcion}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                      selectedVacante.estado
+                    )}`}
+                  >
+                    {getEstadoVisible(selectedVacante.estado)}
+                  </span>
+                </div>
+              </section>
+
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">Modalidad</p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {selectedVacante.modalidad}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {selectedVacante.ubicacion || "Sin ubicación"}
+                  </p>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">Salario</p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {formatMoney(selectedVacante.salario)}
+                  </p>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">
+                    Experiencia
+                  </p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {selectedVacante.nivelExperiencia}
+                  </p>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">
+                    Fecha de cierre
+                  </p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {formatDate(selectedVacante.fechaCierre)}
+                  </p>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="font-black text-slate-900 mb-3">
+                  Habilidades requeridas
+                </h3>
+
+                {selectedVacante.habilidades?.length === 0 ? (
+                  <div className="border border-slate-200 rounded-xl p-4 text-slate-500">
+                    No hay habilidades registradas.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedVacante.habilidades?.map((item) => (
+                      <div
+                        key={item.id}
+                        className="border border-slate-200 rounded-xl p-4"
+                      >
+                        <p className="font-black text-slate-900">
+                          {item.habilidadNombre}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">
+                          Nivel requerido: {item.nivelRequerido}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          {item.obligatorio ? "Obligatoria" : "Deseable"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

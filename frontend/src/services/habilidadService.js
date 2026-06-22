@@ -7,8 +7,8 @@ export const habilidadService = {
   },
 
   async getActive() {
-    const response = await api.get("/habilidades/activas");
-    return response.data;
+    const data = await this.getAll();
+    return data.filter((habilidad) => habilidad.estado === true);
   },
 
   async create(habilidadData) {
