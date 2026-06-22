@@ -1,129 +1,87 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Activity,
   BookOpenCheck,
-  CheckCircle2,
   Clock,
-  FileText,
+  Eye,
+  FileQuestion,
+  Plus,
   RefreshCw,
   Search,
-  Star,
-  UserCheck,
-  UserX,
-  XCircle,
+  Trash2,
+  X,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
-import { evaluacionPostulacionService } from "../../services/evaluacionPostulacionService.js";
-import { logService } from "../../services/logService.js";
+import { evaluacionService } from "../../services/evaluacionService.js";
 
-function TechnicalResults() {
-  const [results, setResults] = useState([]);
-  const [logs, setLogs] = useState([]);
+function TechnicalEvaluations() {
+  const navigate = useNavigate();
+
+  const [evaluaciones, setEvaluaciones] = useState([]);
+  const [selectedEvaluation, setSelectedEvaluation] = useState(null);
 
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("Todos");
-  const [reviewForms, setReviewForms] = useState({});
 
-  const [loadingResults, setLoadingResults] = useState(true);
-  const [loadingLogs, setLoadingLogs] = useState(true);
-  const [reviewingId, setReviewingId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [deactivatingId, setDeactivatingId] = useState(null);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
-  const filteredResults = useMemo(() => {
-    const value = search.toLowerCase().trim();
-
-    return results.filter((item) => {
-      const matchesSearch =
-        item.postulanteNombre?.toLowerCase().includes(value) ||
-        item.postulanteCorreo?.toLowerCase().includes(value) ||
-        item.vacanteTitulo?.toLowerCase().includes(value) ||
-        item.evaluacionTitulo?.toLowerCase().includes(value);
-
-      const matchesStatus =
-        selectedStatus === "Todos" || item.estado === selectedStatus;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [results, search, selectedStatus]);
-
-  const completedCount = results.filter(
-    (item) => item.estado === "COMPLETADA"
-  ).length;
-
-  const reviewedCount = results.filter(
-    (item) => item.estado === "REVISADA"
-  ).length;
-
-  const averageScore = useMemo(() => {
-    const scores = results
-      .map((item) => Number(item.puntajeObtenido))
-      .filter((score) => !Number.isNaN(score));
-
-    if (scores.length === 0) return 0;
-
-    const total = scores.reduce((sum, score) => sum + score, 0);
-    return (total / scores.length).toFixed(1);
-  }, [results]);
-
-  const loadResults = async () => {
+  const loadEvaluaciones = async () => {
     try {
-      setLoadingResults(true);
+      setLoading(true);
+      const data = await evaluacionService.getAll();
+      setEvaluaciones(data);
 
-      const data = await evaluacionPostulacionService.getAll();
-
-      const visibleResults = data.filter(
-        (item) => item.estado === "COMPLETADA" || item.estado === "REVISADA"
-      );
-
-      setResults(visibleResults);
-
-      const initialForms = {};
-
-      visibleResults.forEach((item) => {
-        initialForms[item.id] = {
-          puntajeObtenido: item.puntajeObtenido ?? "",
-          comentarioTecnico: item.comentarioTecnico || "",
-        };
-      });
-
-      setReviewForms(initialForms);
+      if (selectedEvaluation) {
+        const updated = data.find((item) => item.id === selectedEvaluation.id);
+        setSelectedEvaluation(updated || null);
+      }
     } catch (error) {
       showMessage(
-        error.userMessage || "No se pudieron cargar los resultados técnicos.",
+        error.userMessage || "No se pudieron cargar las evaluaciones.",
         "error"
       );
     } finally {
-      setLoadingResults(false);
+      setLoading(false);
     }
-  };
-
-  const loadLogs = async () => {
-    try {
-      setLoadingLogs(true);
-      const data = await logService.getLatest();
-
-      const evaluationLogs = data
-        .filter((log) => log.modulo === "EVALUACIONES")
-        .slice(0, 5);
-
-      setLogs(evaluationLogs);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoadingLogs(false);
-    }
-  };
-
-  const refreshData = async () => {
-    await Promise.all([loadResults(), loadLogs()]);
   };
 
   useEffect(() => {
-    refreshData();
+    loadEvaluaciones();
   }, []);
+
+  const filteredEvaluaciones = useMemo(() => {
+    const value = search.toLowerCase().trim();
+
+    return evaluaciones.filter((evaluacion) => {
+      const matchesSearch =
+        evaluacion.titulo?.toLowerCase().includes(value) ||
+        evaluacion.vacanteTitulo?.toLowerCase().includes(value) ||
+        evaluacion.tecnicoNombre?.toLowerCase().includes(value);
+
+      const matchesStatus =
+        selectedStatus === "Todos" || evaluacion.estado === selectedStatus;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [evaluaciones, search, selectedStatus]);
+
+  const totalActivas = evaluaciones.filter(
+    (item) => item.estado === "ACTIVA"
+  ).length;
+
+  const totalInactivas = evaluaciones.filter(
+    (item) => item.estado === "INACTIVA"
+  ).length;
+
+  const totalPreguntas = evaluaciones.reduce(
+    (total, item) => total + (item.preguntas?.length || 0),
+    0
+  );
 
   const showMessage = (text, type = "info") => {
     setMessage(text);
@@ -134,68 +92,26 @@ function TechnicalResults() {
     }, 4000);
   };
 
-  const handleReviewFormChange = (id, field, value) => {
-    setReviewForms((prev) => ({
-      ...prev,
-      [id]: {
-        ...prev[id],
-        [field]: value,
-      },
-    }));
-  };
+  const handleDeactivate = async (evaluacion) => {
+    const confirmed = window.confirm(
+      `¿Deseas desactivar la evaluación "${evaluacion.titulo}"?`
+    );
 
-  const validateReview = (item) => {
-    const form = reviewForms[item.id] || {};
-
-    if (form.puntajeObtenido === "" || form.puntajeObtenido === null) {
-      return "Ingresa el puntaje obtenido.";
-    }
-
-    if (Number(form.puntajeObtenido) < 0) {
-      return "El puntaje no puede ser negativo.";
-    }
-
-    if (!form.comentarioTecnico?.trim()) {
-      return "Agrega un comentario técnico antes de revisar.";
-    }
-
-    return null;
-  };
-
-  const handleTechnicalReview = async (item, approved) => {
-    const validationError = validateReview(item);
-
-    if (validationError) {
-      showMessage(validationError, "error");
-      return;
-    }
-
-    const form = reviewForms[item.id];
+    if (!confirmed) return;
 
     try {
-      setReviewingId(item.id);
+      setDeactivatingId(evaluacion.id);
+      await evaluacionService.deactivate(evaluacion.id);
 
-      await evaluacionPostulacionService.review(item.id, {
-        aprobado: approved,
-        puntajeObtenido: Number(form.puntajeObtenido),
-        comentarioTecnico: form.comentarioTecnico.trim(),
-      });
-
-      showMessage(
-        approved
-          ? "Resultado aprobado técnicamente."
-          : "Resultado rechazado técnicamente.",
-        "success"
-      );
-
-      await refreshData();
+      showMessage("Evaluación desactivada correctamente.", "success");
+      await loadEvaluaciones();
     } catch (error) {
       showMessage(
-        error.userMessage || "No se pudo revisar el resultado técnico.",
+        error.userMessage || "No se pudo desactivar la evaluación.",
         "error"
       );
     } finally {
-      setReviewingId(null);
+      setDeactivatingId(null);
     }
   };
 
@@ -210,34 +126,22 @@ function TechnicalResults() {
 
   const statusClass = (status) => {
     const styles = {
-      COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
-      REVISADA: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      ACTIVA: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      INACTIVA: "bg-slate-50 text-slate-600 border-slate-200",
     };
 
     return styles[status] || "bg-slate-50 text-slate-600 border-slate-200";
   };
 
-  const statusIcon = (status) => {
-    if (status === "REVISADA") return <CheckCircle2 size={18} />;
-    return <Clock size={18} />;
-  };
+  const questionTypeLabel = (type) => {
+    const labels = {
+      MULTIPLE: "Opción múltiple",
+      VERDADERO_FALSO: "Verdadero/Falso",
+      TEXTO: "Texto",
+      CODIGO: "Código",
+    };
 
-  const answerStatusClass = (answer) => {
-    if (answer.esCorrecta === true) {
-      return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    }
-
-    if (answer.esCorrecta === false) {
-      return "bg-rose-50 text-rose-700 border-rose-200";
-    }
-
-    return "bg-slate-50 text-slate-600 border-slate-200";
-  };
-
-  const answerStatusText = (answer) => {
-    if (answer.esCorrecta === true) return "Correcta";
-    if (answer.esCorrecta === false) return "Incorrecta";
-    return "Respuesta abierta";
+    return labels[type] || type;
   };
 
   const alertStyles = {
@@ -249,56 +153,59 @@ function TechnicalResults() {
   return (
     <div>
       <SectionHeader
-        title="Resultados técnicos"
-        description="Revisa evaluaciones completadas y define si el postulante aprueba la etapa técnica."
+        title="Evaluaciones técnicas"
+        description="Banco de evaluaciones creadas para las vacantes del proceso técnico."
+        action={
+          <button
+            onClick={() => navigate("/technical/evaluaciones/create")}
+            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-black"
+          >
+            <Plus size={17} />
+            Crear evaluación
+          </button>
+        }
       />
 
       {message && (
         <div
-          className={`mb-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+          className={`mb-5 border rounded-2xl px-4 py-3 text-sm font-semibold ${alertStyles[messageType]}`}
         >
           {message}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">
-            Por revisar
-          </p>
-          <p className="text-4xl font-black text-violet-600 mt-2">
-            {completedCount}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">Activas</p>
+          <p className="text-3xl font-black text-emerald-600 mt-1">
+            {totalActivas}
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">
-            Revisadas
-          </p>
-          <p className="text-4xl font-black text-emerald-600 mt-2">
-            {reviewedCount}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">Inactivas</p>
+          <p className="text-3xl font-black text-slate-700 mt-1">
+            {totalInactivas}
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">
-            Promedio
-          </p>
-          <p className="text-4xl font-black text-slate-900 mt-2">
-            {averageScore}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">Preguntas</p>
+          <p className="text-3xl font-black text-sky-600 mt-1">
+            {totalPreguntas}
           </p>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white border border-slate-200 rounded-[2rem] p-5 mb-8 grid grid-cols-1 md:grid-cols-[1fr_240px_auto] gap-4 shadow-sm">
-        <div className="flex items-center gap-3 border border-slate-300 rounded-2xl px-4 py-3 bg-white focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100">
+      <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3">
+        <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
           <Search size={18} className="text-emerald-600" />
           <input
             type="text"
-            placeholder="Buscar por postulante, correo, vacante o evaluación..."
+            placeholder="Buscar por evaluación, vacante o técnico..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full outline-none bg-transparent text-slate-900"
+            className="w-full outline-none bg-transparent text-sm text-slate-900"
           />
         </div>
 
@@ -307,311 +214,254 @@ function TechnicalResults() {
           onChange={(e) => setSelectedStatus(e.target.value)}
           className="input-light"
         >
-          <option value="Todos">Todos los estados</option>
-          <option value="COMPLETADA">Completada</option>
-          <option value="REVISADA">Revisada</option>
+          <option value="Todos">Todos</option>
+          <option value="ACTIVA">Activa</option>
+          <option value="INACTIVA">Inactiva</option>
         </select>
 
         <button
           type="button"
-          onClick={refreshData}
-          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-2xl font-black"
+          onClick={loadEvaluaciones}
+          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-black"
         >
-          <RefreshCw size={18} />
+          <RefreshCw size={17} />
           Actualizar
         </button>
-      </div>
+      </section>
 
-      {loadingResults ? (
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900">
-            Cargando resultados...
+      {loading ? (
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <h2 className="text-xl font-black text-slate-900">
+            Cargando evaluaciones...
           </h2>
-          <p className="text-slate-500 mt-2">
-            Consultando evaluaciones completadas desde MySQL.
-          </p>
+          <p className="text-slate-500 mt-1">Un momento por favor.</p>
         </div>
-      ) : filteredResults.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center shadow-sm">
-          <BookOpenCheck size={42} className="mx-auto text-emerald-600" />
-          <h2 className="text-2xl font-black text-slate-900 mt-4">
-            No hay resultados para revisar
+      ) : filteredEvaluaciones.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <BookOpenCheck size={36} className="mx-auto text-emerald-600" />
+          <h2 className="text-xl font-black text-slate-900 mt-3">
+            No hay evaluaciones para mostrar
           </h2>
-          <p className="text-slate-500 mt-2">
-            Cuando un postulante complete una evaluación, aparecerá en esta
-            pantalla.
+          <p className="text-sm text-slate-500 mt-1">
+            Crea una evaluación para poder asignarla a candidatos.
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {filteredResults.map((item) => (
-            <article
-              key={item.id}
-              className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm"
-            >
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[1.4fr_1.2fr_0.7fr_0.7fr_180px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+            <span>Evaluación</span>
+            <span>Vacante</span>
+            <span>Preguntas</span>
+            <span>Estado</span>
+            <span className="text-right">Acciones</span>
+          </div>
+
+          <div className="divide-y divide-slate-200">
+            {filteredEvaluaciones.map((evaluacion) => (
+              <div
+                key={evaluacion.id}
+                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.2fr_0.7fr_0.7fr_180px] gap-4 px-5 py-4 items-center"
+              >
                 <div>
-                  <span className="inline-flex px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-black mb-3">
-                    {item.vacanteTitulo}
-                  </span>
-
-                  <h3 className="text-2xl font-black text-slate-900">
-                    {item.postulanteNombre}
-                  </h3>
-
-                  <p className="text-slate-500 mt-1">
-                    {item.postulanteCorreo}
+                  <p className="font-black text-slate-900">
+                    {evaluacion.titulo}
                   </p>
-
-                  <p className="font-black text-slate-800 mt-4">
-                    {item.evaluacionTitulo}
+                  <p className="text-sm text-slate-500 mt-1">
+                    {evaluacion.descripcion || "Sin descripción"}
                   </p>
-
-                  <div className="flex flex-wrap gap-4 text-sm text-slate-500 mt-3">
-                    <span className="inline-flex items-center gap-2">
-                      <Clock size={16} className="text-emerald-600" />
-                      Enviada: {formatDateTime(item.fechaEnvio)}
-                    </span>
-
-                    <span className="inline-flex items-center gap-2">
-                      <Star size={16} className="text-emerald-600" />
-                      Puntaje automático: {item.puntajeObtenido ?? 0}
-                    </span>
-                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Técnico: {evaluacion.tecnicoNombre || "No asignado"}
+                  </p>
                 </div>
 
-                <span
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-black ${statusClass(
-                    item.estado
-                  )}`}
-                >
-                  {statusIcon(item.estado)}
-                  {item.estado}
-                </span>
+                <div>
+                  <p className="font-bold text-slate-800">
+                    {evaluacion.vacanteTitulo}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Creada: {formatDateTime(evaluacion.createdAt)}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 text-slate-700 font-black">
+                  <FileQuestion size={17} className="text-emerald-600" />
+                  {evaluacion.preguntas?.length || 0}
+                </div>
+
+                <div>
+                  <span
+                    className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                      evaluacion.estado
+                    )}`}
+                  >
+                    {evaluacion.estado}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap justify-start lg:justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEvaluation(evaluacion)}
+                    className="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-xl text-sm font-bold"
+                  >
+                    <Eye size={16} />
+                    Ver
+                  </button>
+
+                  {evaluacion.estado === "ACTIVA" && (
+                    <button
+                      type="button"
+                      disabled={deactivatingId === evaluacion.id}
+                      onClick={() => handleDeactivate(evaluacion)}
+                      className="inline-flex items-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:bg-slate-100 text-rose-700 disabled:text-slate-500 px-3 py-2 rounded-xl text-sm font-bold"
+                    >
+                      <Trash2 size={16} />
+                      Desactivar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {selectedEvaluation && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center px-4 py-8">
+          <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-xl">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  Detalle de evaluación
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {selectedEvaluation.vacanteTitulo}
+                </p>
               </div>
 
-              <div className="mt-6">
-                <h4 className="font-black text-slate-900 mb-3">
-                  Respuestas del postulante
-                </h4>
+              <button
+                type="button"
+                onClick={() => setSelectedEvaluation(null)}
+                className="w-9 h-9 rounded-xl border border-slate-300 hover:bg-slate-50 flex items-center justify-center text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-                {item.respuestas?.length === 0 ? (
-                  <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4 text-slate-500">
-                    No hay respuestas registradas.
+            <div className="p-5 space-y-5">
+              <section className="border border-slate-200 rounded-xl p-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900">
+                      {selectedEvaluation.titulo}
+                    </h3>
+
+                    <p className="text-sm text-slate-500 mt-2">
+                      {selectedEvaluation.descripcion || "Sin descripción"}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                      selectedEvaluation.estado
+                    )}`}
+                  >
+                    {selectedEvaluation.estado}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
+                  <div className="border border-slate-200 rounded-xl p-3">
+                    <div className="flex items-center gap-2 text-slate-700">
+                      <Clock size={17} className="text-emerald-600" />
+                      <p className="text-sm font-black">
+                        {selectedEvaluation.duracionMinutos} min
+                      </p>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Duración</p>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-xl p-3">
+                    <p className="text-sm font-black text-slate-700">
+                      {selectedEvaluation.puntajeMaximo}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Puntaje máximo
+                    </p>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-xl p-3">
+                    <p className="text-sm font-black text-slate-700">
+                      {selectedEvaluation.preguntas?.length || 0}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Preguntas</p>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="font-black text-slate-900 mb-3">
+                  Preguntas registradas
+                </h3>
+
+                {selectedEvaluation.preguntas?.length === 0 ? (
+                  <div className="border border-slate-200 rounded-xl p-4 text-slate-500">
+                    No hay preguntas registradas.
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {item.respuestas?.map((answer, index) => (
+                  <div className="space-y-3">
+                    {selectedEvaluation.preguntas?.map((pregunta) => (
                       <div
-                        key={answer.id}
-                        className="rounded-3xl bg-slate-50 border border-slate-200 p-4"
+                        key={pregunta.id}
+                        className="border border-slate-200 rounded-xl p-4"
                       >
                         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                           <div>
                             <p className="text-xs font-black text-slate-500">
-                              Pregunta {index + 1}
+                              Pregunta {pregunta.orden}
                             </p>
 
-                            <p className="font-black text-slate-900 mt-1">
-                              {answer.preguntaEnunciado}
+                            <p className="font-bold text-slate-900 mt-1">
+                              {pregunta.enunciado}
                             </p>
                           </div>
 
-                          <span
-                            className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${answerStatusClass(
-                              answer
-                            )}`}
-                          >
-                            {answerStatusText(answer)}
+                          <span className="inline-flex px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-xs font-black text-slate-600">
+                            {questionTypeLabel(pregunta.tipoPregunta)} ·{" "}
+                            {pregunta.puntaje} pts
                           </span>
                         </div>
 
-                        <div className="mt-4 rounded-2xl bg-white border border-slate-200 p-4">
-                          <p className="text-xs font-black text-slate-500">
-                            Respuesta
-                          </p>
-
-                          <p className="text-sm text-slate-700 mt-1 whitespace-pre-wrap">
-                            {answer.opcionTexto ||
-                              answer.respuestaTexto ||
-                              "Sin respuesta"}
-                          </p>
-                        </div>
-
-                        <p className="text-sm text-slate-500 mt-3">
-                          Puntaje obtenido en esta pregunta:{" "}
-                          <strong>{answer.puntajeObtenido ?? 0}</strong>
-                        </p>
+                        {pregunta.opciones?.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {pregunta.opciones.map((opcion) => (
+                              <div
+                                key={opcion.id}
+                                className={`rounded-xl border px-3 py-2 text-sm ${
+                                  opcion.esCorrecta
+                                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                    : "bg-slate-50 border-slate-200 text-slate-600"
+                                }`}
+                              >
+                                {opcion.texto}
+                                {opcion.esCorrecta && (
+                                  <strong className="ml-2">(correcta)</strong>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
-
-              {item.estado === "REVISADA" ? (
-                <div className="mt-6 rounded-3xl bg-emerald-50 border border-emerald-100 p-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2
-                      size={22}
-                      className="text-emerald-600 shrink-0 mt-1"
-                    />
-
-                    <div>
-                      <p className="font-black text-slate-900">
-                        Evaluación revisada
-                      </p>
-
-                      <p className="text-sm text-slate-600 mt-1">
-                        Puntaje final:{" "}
-                        <strong>{item.puntajeObtenido ?? "Sin puntaje"}</strong>
-                      </p>
-
-                      {item.comentarioTecnico && (
-                        <p className="text-sm text-slate-600 mt-2">
-                          <strong>Comentario:</strong>{" "}
-                          {item.comentarioTecnico}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-6 rounded-3xl bg-slate-50 border border-slate-200 p-5">
-                  <div className="flex items-start gap-3 mb-5">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center shrink-0">
-                      <FileText size={22} />
-                    </div>
-
-                    <div>
-                      <h4 className="font-black text-slate-900">
-                        Revisión técnica final
-                      </h4>
-                      <p className="text-sm text-slate-500">
-                        Define el puntaje final y el resultado técnico del
-                        postulante.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">
-                        Puntaje final *
-                      </label>
-
-                      <input
-                        type="number"
-                        min="0"
-                        value={reviewForms[item.id]?.puntajeObtenido || ""}
-                        onChange={(e) =>
-                          handleReviewFormChange(
-                            item.id,
-                            "puntajeObtenido",
-                            e.target.value
-                          )
-                        }
-                        className="input-light"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">
-                        Comentario técnico *
-                      </label>
-
-                      <textarea
-                        value={reviewForms[item.id]?.comentarioTecnico || ""}
-                        onChange={(e) =>
-                          handleReviewFormChange(
-                            item.id,
-                            "comentarioTecnico",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Ej: Demuestra buen manejo técnico para el puesto."
-                        className="w-full min-h-24 border border-slate-300 rounded-2xl p-4 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col md:flex-row gap-3 mt-5">
-                    <button
-                      type="button"
-                      disabled={reviewingId === item.id}
-                      onClick={() => handleTechnicalReview(item, true)}
-                      className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 disabled:bg-slate-100 text-emerald-700 disabled:text-slate-500 border border-emerald-100 px-5 py-3 rounded-2xl font-black"
-                    >
-                      <UserCheck size={18} />
-                      {reviewingId === item.id
-                        ? "Revisando..."
-                        : "Aprobar técnicamente"}
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={reviewingId === item.id}
-                      onClick={() => handleTechnicalReview(item, false)}
-                      className="inline-flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 disabled:bg-slate-100 text-rose-700 disabled:text-slate-500 border border-rose-100 px-5 py-3 rounded-2xl font-black"
-                    >
-                      <UserX size={18} />
-                      Rechazar técnicamente
-                    </button>
-                  </div>
-                </div>
-              )}
-            </article>
-          ))}
+              </section>
+            </div>
+          </div>
         </div>
       )}
-
-      <section className="mt-8 bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center">
-            <Activity size={24} />
-          </div>
-
-          <div>
-            <h2 className="text-xl font-black text-slate-900">
-              Logs recientes de evaluaciones
-            </h2>
-
-            <p className="text-sm text-slate-500">
-              Actividad registrada al enviar y revisar evaluaciones.
-            </p>
-          </div>
-        </div>
-
-        {loadingLogs ? (
-          <p className="text-slate-500">Cargando logs...</p>
-        ) : logs.length === 0 ? (
-          <p className="text-slate-500">
-            No hay logs recientes de evaluaciones.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {logs.map((log) => (
-              <div
-                key={log.id}
-                className="rounded-2xl bg-slate-50 border border-slate-200 p-4"
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <p className="font-black text-slate-900">{log.accion}</p>
-
-                  <span className="text-xs text-slate-400">
-                    {formatDateTime(log.fechaHora)}
-                  </span>
-                </div>
-
-                <p className="text-sm text-slate-500 mt-1">
-                  {log.descripcion}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }
 
-export default TechnicalResults;
+export default TechnicalEvaluations;
