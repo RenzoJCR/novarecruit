@@ -9,6 +9,8 @@ import PublicJobDetail from "../pages/public/PublicJobDetail.jsx";
 
 import Login from "../pages/auth/Login.jsx";
 import Register from "../pages/auth/Register.jsx";
+import VerifyEmail from "../pages/auth/VerifyEmail.jsx";
+import ChangePassword from "../pages/auth/ChangePassword.jsx";
 
 import ApplicantDashboard from "../pages/applicant/ApplicantDashboard.jsx";
 import ApplicantJobs from "../pages/applicant/ApplicantJobs.jsx";
@@ -42,15 +44,22 @@ import AdminSettings from "../pages/admin/AdminSettings.jsx";
 function AppRoutes() {
   return (
     <Routes>
+      {/* Rutas de autenticación sin layout */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/change-password" element={<ChangePassword />} />
+
+      {/* Rutas públicas */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/vacantes" element={<PublicJobs />} />
         <Route path="/vacantes/:id" element={<PublicJobDetail />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
       </Route>
 
+      {/* Rutas internas */}
       <Route element={<DashboardLayout />}>
+        {/* Postulante */}
         <Route
           path="/applicant"
           element={<Navigate to="/applicant/dashboard" replace />}
@@ -79,6 +88,7 @@ function AppRoutes() {
         />
         <Route path="/applicant/perfil" element={<ApplicantProfile />} />
 
+        {/* RRHH */}
         <Route
           path="/rrhh"
           element={<Navigate to="/rrhh/dashboard" replace />}
@@ -90,6 +100,7 @@ function AppRoutes() {
         <Route path="/rrhh/candidatos" element={<RrhhCandidates />} />
         <Route path="/rrhh/entrevistas" element={<RrhhInterviews />} />
 
+        {/* Líder técnico */}
         <Route
           path="/technical"
           element={<Navigate to="/technical/dashboard" replace />}
@@ -103,9 +114,13 @@ function AppRoutes() {
           path="/technical/evaluaciones/create"
           element={<TechnicalCreateEvaluation />}
         />
-        <Route path="/technical/postulantes" element={<TechnicalApplicants />} />
+        <Route
+          path="/technical/postulantes"
+          element={<TechnicalApplicants />}
+        />
         <Route path="/technical/resultados" element={<TechnicalResults />} />
 
+        {/* Administrador */}
         <Route
           path="/admin"
           element={<Navigate to="/admin/dashboard" replace />}
@@ -118,6 +133,7 @@ function AppRoutes() {
         <Route path="/admin/configuracion" element={<AdminSettings />} />
       </Route>
 
+      {/* Ruta no encontrada */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -1,223 +1,187 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  ShieldCheck,
-  Users,
-  UserRound,
-  Code2,
-  ArrowRight,
-  LockKeyhole,
-  Sparkles,
-} from "lucide-react";
+import { LockKeyhole, LogIn, Mail, Sparkles } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext.jsx";
+import { getHomeByRole } from "../../utils/roleRedirect.js";
 
-const roleOptions = [
-  {
-    id: "postulante",
-    title: "Postulante",
-    description: "Ver vacantes, postular y rendir evaluaciones.",
-    icon: UserRound,
-    redirectTo: "/applicant/dashboard",
-  },
-  {
-    id: "rrhh",
-    title: "RRHH",
-    description: "Crear vacantes y revisar candidatos.",
-    icon: Users,
-    redirectTo: "/rrhh/dashboard",
-  },
-  {
-    id: "tecnico",
-    title: "Líder Técnico",
-    description: "Asignar evaluaciones y revisar resultados.",
-    icon: Code2,
-    redirectTo: "/technical/dashboard",
-  },
-  {
-    id: "administrador",
-    title: "Administrador",
-    description: "Gestionar usuarios, áreas y reportes.",
-    icon: ShieldCheck,
-    redirectTo: "/admin/dashboard",
-  },
-];
+const initialForm = {
+  correo: "",
+  password: "",
+};
 
 function Login() {
   const navigate = useNavigate();
-  const { loginAs } = useAuth();
+  const { login, loadingAuth } = useAuth();
 
-  const [selectedRole, setSelectedRole] = useState("postulante");
-  const [email, setEmail] = useState("demo@novarecruit.com");
-  const [password, setPassword] = useState("123456");
+  const [form, setForm] = useState(initialForm);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("info");
 
-  const selectedOption = roleOptions.find((role) => role.id === selectedRole);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
 
-  const handleSubmit = (e) => {
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+  };
+
+  const validateForm = () => {
+    if (!form.correo.trim()) return "Ingresa tu correo.";
+    if (!form.password.trim()) return "Ingresa tu contraseña.";
+
+    return null;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!email || !password) {
-      setMessage("Ingresa correo y contraseña.");
+    const validationError = validateForm();
+
+    if (validationError) {
+      showMessage(validationError, "error");
       return;
     }
 
-    const result = loginAs(selectedRole);
+    try {
+      const response = await login({
+        correo: form.correo.trim().toLowerCase(),
+        password: form.password,
+      });
 
-    if (!result.ok) {
-      setMessage(result.message);
-      return;
+      if (!response.token && response.correoVerificado === false) {
+        showMessage(response.message, "info");
+
+        setTimeout(() => {
+          navigate(
+            `/verify-email?correo=${encodeURIComponent(
+              form.correo.trim().toLowerCase()
+            )}`
+          );
+        }, 900);
+
+        return;
+      }
+
+      if (response.debeCambiarPassword) {
+        navigate("/change-password", { replace: true });
+        return;
+      }
+
+      navigate(getHomeByRole(response.rolNombre), { replace: true });
+    } catch (error) {
+      showMessage(error.userMessage || "No se pudo iniciar sesión.", "error");
     }
+  };
 
-    navigate(selectedOption.redirectTo);
+  const alertStyles = {
+    info: "bg-sky-50 border-sky-200 text-sky-700",
+    success: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    error: "bg-rose-50 border-rose-200 text-rose-700",
   };
 
   return (
-    <section className="min-h-[calc(100vh-80px)] px-6 py-12 flex items-center justify-center">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr] gap-8">
-        <div className="glass-card rounded-[2rem] p-8 shadow-2xl">
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-400/10 border border-emerald-300/20 text-emerald-300 text-sm font-semibold mb-6">
-            <LockKeyhole size={16} />
-            Acceso simulado para demostración
-          </span>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-sky-50 flex items-center justify-center px-5 py-10">
+      <div className="w-full max-w-md">
+        <div className="bg-white/95 border border-slate-200 rounded-[2rem] p-8 shadow-xl">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-emerald-500 to-sky-500 text-white flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/20">
+            <LogIn size={30} />
+          </div>
 
-          <h1 className="text-4xl lg:text-5xl font-black mb-4 tracking-tight">
-            Ingresa a <span className="gradient-text">NovaRecruit</span>
+          <h1 className="text-3xl font-black text-slate-900">
+            Iniciar sesión
           </h1>
 
-          <p className="text-slate-400 mb-8 leading-relaxed">
-            Selecciona un rol para acceder al panel correspondiente. En la
-            versión final, Spring Boot validará el usuario, contraseña y token
-            JWT.
+          <p className="text-slate-500 mt-2">
+            Accede a NovaRecruit según tu rol.
           </p>
 
           {message && (
-            <div className="mb-5 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-2xl px-5 py-4 font-semibold">
+            <div
+              className={`mt-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+            >
               {message}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="mt-7 space-y-5">
             <div>
-              <label className="block text-sm mb-2 text-slate-300 font-semibold">
+              <label className="block text-sm font-bold text-slate-700 mb-2">
                 Correo
               </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input-dark"
-                placeholder="correo@email.com"
-              />
+
+              <div className="relative">
+                <Mail
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600"
+                />
+                <input
+                  type="email"
+                  name="correo"
+                  value={form.correo}
+                  onChange={handleChange}
+                  placeholder="correo@ejemplo.com"
+                  className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm mb-2 text-slate-300 font-semibold">
+              <label className="block text-sm font-bold text-slate-700 mb-2">
                 Contraseña
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-dark"
-                placeholder="********"
-              />
-            </div>
 
-            <div>
-              <label className="block text-sm mb-2 text-slate-300 font-semibold">
-                Ingresar como
-              </label>
-
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="input-dark"
-              >
-                {roleOptions.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.title}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <LockKeyhole
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600"
+                />
+                <input
+                  type="password"
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  placeholder="Tu contraseña"
+                  className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                />
+              </div>
             </div>
 
             <button
               type="submit"
-              className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20 transition-all"
+              disabled={loadingAuth}
+              className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 disabled:from-slate-300 disabled:to-slate-300 text-white px-6 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20 disabled:shadow-none"
             >
-              Ingresar al sistema
-              <ArrowRight size={18} />
+              <LogIn size={18} />
+              {loadingAuth ? "Ingresando..." : "Ingresar"}
             </button>
           </form>
 
-          <p className="text-sm text-slate-400 mt-6">
-            ¿Eres postulante nuevo?{" "}
-            <Link to="/register" className="text-emerald-300 font-bold">
-              Crea tu cuenta aquí
+          <div className="mt-6 rounded-3xl bg-emerald-50 border border-emerald-100 p-4">
+            <div className="flex items-start gap-3">
+              <Sparkles size={20} className="text-emerald-600 shrink-0 mt-1" />
+              <p className="text-sm text-slate-600">
+                Si eres postulante nuevo, crea tu cuenta y verifica tu correo
+                con el código recibido.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-center text-sm text-slate-500 mt-6">
+            ¿No tienes cuenta?{" "}
+            <Link to="/register" className="font-black text-emerald-700">
+              Regístrate como postulante
             </Link>
           </p>
         </div>
-
-        <div>
-          <div className="mb-5">
-            <span className="inline-flex items-center gap-2 text-emerald-300 text-sm font-bold mb-3">
-              <Sparkles size={16} />
-              Selección rápida de rol
-            </span>
-
-            <h2 className="text-3xl font-black">
-              Explora el sistema desde cada perfil
-            </h2>
-
-            <p className="text-slate-400 mt-2">
-              Cada rol tiene navegación, permisos visuales y módulos
-              específicos dentro de NovaRecruit.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {roleOptions.map((role) => {
-              const Icon = role.icon;
-              const isSelected = selectedRole === role.id;
-
-              return (
-                <button
-                  type="button"
-                  key={role.id}
-                  onClick={() => setSelectedRole(role.id)}
-                  className={`text-left rounded-[1.7rem] p-6 border transition-all ${
-                    isSelected
-                      ? "bg-gradient-to-br from-emerald-500 to-sky-500 border-white/20 shadow-2xl shadow-emerald-500/20 scale-[1.02]"
-                      : "glass-card hover:border-emerald-300/30 hover:-translate-y-1"
-                  }`}
-                >
-                  <div
-                    className={`w-13 h-13 rounded-2xl flex items-center justify-center mb-5 ${
-                      isSelected
-                        ? "bg-white text-emerald-600"
-                        : "bg-slate-950/70 text-emerald-300 border border-white/10"
-                    }`}
-                  >
-                    <Icon size={25} />
-                  </div>
-
-                  <h3 className="text-xl font-black">{role.title}</h3>
-
-                  <p
-                    className={`mt-2 text-sm leading-relaxed ${
-                      isSelected ? "text-emerald-50" : "text-slate-400"
-                    }`}
-                  >
-                    {role.description}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
-    </section>
+    </div>
   );
 }
 

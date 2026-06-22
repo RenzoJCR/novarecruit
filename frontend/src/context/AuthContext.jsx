@@ -1,94 +1,168 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { mockUsers } from "../data/users.js";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { authService } from "../services/authService.js";
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEY = "novarecruit_user";
+const TOKEN_KEY = "novarecruit_token";
+const USER_KEY = "novarecruit_user";
+
+function buildUserFromAuth(authData) {
+  return {
+    id: authData.userId,
+    nombreCompleto: authData.nombreCompleto,
+    correo: authData.correo,
+    rolNombre: authData.rolNombre,
+    correoVerificado: authData.correoVerificado,
+    debeCambiarPassword: authData.debeCambiarPassword,
+  };
+}
+
+function getStoredUser() {
+  const storedUser = localStorage.getItem(USER_KEY);
+
+  if (!storedUser) return null;
+
+  try {
+    return JSON.parse(storedUser);
+  } catch {
+    localStorage.removeItem(USER_KEY);
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem(STORAGE_KEY);
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
+  const [loadingAuth, setLoadingAuth] = useState(false);
 
-    if (savedUser) {
-      try {
-        return JSON.parse(savedUser);
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-        return null;
-      }
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
     }
-
-    return null;
-  });
+  }, [token]);
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentUser));
+      localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(USER_KEY);
     }
   }, [currentUser]);
 
-  const loginAs = (role) => {
-    const user = mockUsers[role];
+  const saveSession = (authData) => {
+    if (!authData?.token) return null;
 
-    if (!user) {
-      return {
-        ok: false,
-        message: "Rol no válido.",
-      };
-    }
+    const user = buildUserFromAuth(authData);
 
+    setToken(authData.token);
     setCurrentUser(user);
 
-    return {
-      ok: true,
-      user,
-    };
+    return user;
   };
 
-  const registerApplicant = (applicantData) => {
-    const newApplicant = {
-      id: Date.now(),
-      name: `${applicantData.names} ${applicantData.lastnames}`,
-      role: "postulante",
-      roleLabel: "Postulante",
-      email: applicantData.email,
-      phone: applicantData.phone,
-      linkedin: applicantData.linkedin,
-      github: applicantData.github,
-      cvUrl: applicantData.cvUrl,
-      summary: applicantData.summary,
-    };
+  const login = async (credentials) => {
+    setLoadingAuth(true);
 
-    setCurrentUser(newApplicant);
+    try {
+      const data = await authService.login(credentials);
 
-    return {
-      ok: true,
-      user: newApplicant,
-    };
+      if (data.token) {
+        saveSession(data);
+      }
+
+      return data;
+    } finally {
+      setLoadingAuth(false);
+    }
+  };
+
+  const register = async (payload) => {
+    setLoadingAuth(true);
+
+    try {
+      return await authService.register(payload);
+    } finally {
+      setLoadingAuth(false);
+    }
+  };
+
+  const verifyEmail = async (payload) => {
+    setLoadingAuth(true);
+
+    try {
+      const data = await authService.verifyEmail(payload);
+
+      if (data.token) {
+        saveSession(data);
+      }
+
+      return data;
+    } finally {
+      setLoadingAuth(false);
+    }
+  };
+
+  const resendCode = async (payload) => {
+    setLoadingAuth(true);
+
+    try {
+      return await authService.resendCode(payload);
+    } finally {
+      setLoadingAuth(false);
+    }
+  };
+
+  const changePassword = async (payload) => {
+    setLoadingAuth(true);
+
+    try {
+      const data = await authService.changePassword(payload);
+
+      if (data.token) {
+        saveSession(data);
+      }
+
+      return data;
+    } finally {
+      setLoadingAuth(false);
+    }
   };
 
   const logout = () => {
+    setToken(null);
     setCurrentUser(null);
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        loginAs,
-        registerApplicant,
-        logout,
-        isAuthenticated: Boolean(currentUser),
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      token,
+      currentUser,
+      loadingAuth,
+      isAuthenticated: Boolean(token && currentUser),
+      login,
+      register,
+      verifyEmail,
+      resendCode,
+      changePassword,
+      logout,
+      saveSession,
+    }),
+    [token, currentUser, loadingAuth]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth debe usarse dentro de AuthProvider.");
+  }
+
+  return context;
 }

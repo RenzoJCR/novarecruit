@@ -1,25 +1,39 @@
 import axios from "axios";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api",
+  baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("novarecruit_token");
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message =
+    const backendMessage =
       error.response?.data?.message ||
-      error.response?.data?.nombre ||
-      error.response?.data?.descripcion ||
-      "Ocurrió un error al comunicarse con el servidor.";
+      error.response?.data?.error ||
+      error.message ||
+      "Ocurrió un error inesperado.";
 
-    return Promise.reject({
-      ...error,
-      userMessage: message,
-    });
+    error.userMessage = backendMessage;
+
+    return Promise.reject(error);
   }
 );
 
