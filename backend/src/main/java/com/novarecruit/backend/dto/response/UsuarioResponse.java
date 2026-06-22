@@ -19,6 +19,8 @@ public class UsuarioResponse {
     private String telefono;
     private String fotoPerfil;
     private Boolean estado;
+    private Boolean correoVerificado;
+    private Boolean debeCambiarPassword;
     private LocalDateTime fechaRegistro;
 
     private Long rolId;

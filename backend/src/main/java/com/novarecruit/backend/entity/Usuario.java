@@ -39,6 +39,12 @@ public class Usuario {
     @Column(name = "estado", nullable = false)
     private Boolean estado;
 
+    @Column(name = "correo_verificado", nullable = false)
+    private Boolean correoVerificado;
+
+    @Column(name = "debe_cambiar_password", nullable = false)
+    private Boolean debeCambiarPassword;
+
     @Column(name = "fecha_registro", nullable = false, updatable = false)
     private LocalDateTime fechaRegistro;
 
@@ -50,6 +56,14 @@ public class Usuario {
     public void prePersist() {
         if (estado == null) {
             estado = true;
+        }
+
+        if (correoVerificado == null) {
+            correoVerificado = false;
+        }
+
+        if (debeCambiarPassword == null) {
+            debeCambiarPassword = false;
         }
 
         if (fechaRegistro == null) {

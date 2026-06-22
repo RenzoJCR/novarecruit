@@ -7,6 +7,7 @@ import com.novarecruit.backend.entity.Usuario;
 import com.novarecruit.backend.exception.BusinessException;
 import com.novarecruit.backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,6 +19,7 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final RolService rolService;
     private final LogSistemaService logSistemaService;
+    private final PasswordEncoder passwordEncoder;
 
     public List<UsuarioResponse> listarUsuarios() {
         return usuarioRepository.findAllByOrderByIdAsc()
@@ -44,10 +46,12 @@ public class UsuarioService {
                 .nombres(normalizarTexto(request.getNombres()))
                 .apellidos(normalizarTexto(request.getApellidos()))
                 .correo(correoNormalizado)
-                .password(request.getPassword().trim())
+                .password(passwordEncoder.encode(request.getPassword().trim()))
                 .telefono(normalizarTextoOpcional(request.getTelefono()))
                 .fotoPerfil(normalizarTextoOpcional(request.getFotoPerfil()))
                 .estado(request.getEstado() != null ? request.getEstado() : true)
+                .correoVerificado(true)
+                .debeCambiarPassword(true)
                 .rol(rol)
                 .build();
 
@@ -57,7 +61,7 @@ public class UsuarioService {
                 null,
                 "CREAR_USUARIO",
                 "USUARIOS",
-                "Se creó el usuario: " + usuarioGuardado.getCorreo(),
+                "Se creó el usuario interno: " + usuarioGuardado.getCorreo(),
                 "127.0.0.1"
         );
 
@@ -78,10 +82,12 @@ public class UsuarioService {
         usuario.setNombres(normalizarTexto(request.getNombres()));
         usuario.setApellidos(normalizarTexto(request.getApellidos()));
         usuario.setCorreo(correoNormalizado);
-        usuario.setPassword(request.getPassword().trim());
+        usuario.setPassword(passwordEncoder.encode(request.getPassword().trim()));
         usuario.setTelefono(normalizarTextoOpcional(request.getTelefono()));
         usuario.setFotoPerfil(normalizarTextoOpcional(request.getFotoPerfil()));
         usuario.setRol(rol);
+        usuario.setCorreoVerificado(true);
+        usuario.setDebeCambiarPassword(true);
 
         if (request.getEstado() != null) {
             usuario.setEstado(request.getEstado());
@@ -152,6 +158,8 @@ public class UsuarioService {
                 .telefono(usuario.getTelefono())
                 .fotoPerfil(usuario.getFotoPerfil())
                 .estado(usuario.getEstado())
+                .correoVerificado(usuario.getCorreoVerificado())
+                .debeCambiarPassword(usuario.getDebeCambiarPassword())
                 .fechaRegistro(usuario.getFechaRegistro())
                 .rolId(usuario.getRol().getId())
                 .rolNombre(usuario.getRol().getNombre())
