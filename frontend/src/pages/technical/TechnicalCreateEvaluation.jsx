@@ -1,57 +1,132 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ClipboardList,
+  BookOpenCheck,
+  Briefcase,
+  CheckCircle2,
   Clock,
-  Layers3,
+  FileQuestion,
   Plus,
-  Trash2,
   Save,
-  HelpCircle,
   Sparkles,
-  ListChecks,
+  Trash2,
+  UserRound,
+  X,
 } from "lucide-react";
 
-import { areas } from "../../data/areas.js";
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
-import { useData } from "../../context/DataContext.jsx";
+import { evaluacionService } from "../../services/evaluacionService.js";
+import { userService } from "../../services/userService.js";
+import { vacanteService } from "../../services/vacanteService.js";
 
 const initialForm = {
-  title: "",
-  area: "Frontend",
-  duration: 40,
+  vacanteId: "",
+  tecnicoId: "",
+  titulo: "",
+  descripcion: "",
+  duracionMinutos: 40,
+  puntajeMaximo: 100,
 };
 
-const inputWithIconClass =
-  "w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100";
+const initialQuestion = {
+  tipoPregunta: "MULTIPLE",
+  enunciado: "",
+  puntaje: 20,
+  orden: 1,
+  opciones: [
+    { texto: "", esCorrecta: true },
+    { texto: "", esCorrecta: false },
+  ],
+};
 
-const createEmptyQuestion = () => ({
-  id: Date.now(),
-  question: "",
-  type: "Opción múltiple",
-  options: ["", "", "", ""],
-  correctAnswer: "",
-});
+const closedQuestionTypes = ["MULTIPLE", "VERDADERO_FALSO"];
 
 function TechnicalCreateEvaluation() {
   const navigate = useNavigate();
-  const { createEvaluation } = useData();
 
   const [form, setForm] = useState(initialForm);
-  const [questionList, setQuestionList] = useState([
-    {
-      id: 1,
-      question: "",
-      type: "Opción múltiple",
-      options: ["", "", "", ""],
-      correctAnswer: "",
-    },
-  ]);
+  const [questions, setQuestions] = useState([initialQuestion]);
+
+  const [vacantes, setVacantes] = useState([]);
+  const [tecnicos, setTecnicos] = useState([]);
+
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
-  const handleChange = (e) => {
+  const totalPoints = useMemo(() => {
+    return questions.reduce((total, question) => {
+      return total + Number(question.puntaje || 0);
+    }, 0);
+  }, [questions]);
+
+  useEffect(() => {
+    loadCatalogs();
+  }, []);
+
+  const loadCatalogs = async () => {
+  try {
+    setLoadingCatalogs(true);
+
+    const [vacantesData, usersData] = await Promise.all([
+      vacanteService.getAll(),
+      userService.getAll(),
+    ]);
+
+    const availableVacantes = vacantesData.filter(
+      (vacante) =>
+        vacante.estado !== "CERRADA" && vacante.estado !== "CANCELADA"
+    );
+
+    const technicalUsers = usersData.filter(
+      (user) => user.estado && user.rolNombre === "LIDER_TECNICO"
+    );
+
+    setVacantes(availableVacantes);
+    setTecnicos(technicalUsers);
+
+    setForm((prevForm) => ({
+      ...prevForm,
+      vacanteId: availableVacantes[0]?.id || "",
+      tecnicoId: technicalUsers[0]?.id || "",
+    }));
+
+    if (availableVacantes.length === 0) {
+      showMessage(
+        "No hay vacantes disponibles para crear evaluaciones.",
+        "error"
+      );
+    }
+
+    if (technicalUsers.length === 0) {
+      showMessage(
+        "No hay usuarios activos con rol de líder técnico.",
+        "error"
+      );
+    }
+  } catch (error) {
+    console.error("Error cargando catálogos:", error);
+    showMessage(
+      error.userMessage || "No se pudieron cargar los catálogos.",
+      "error"
+    );
+  } finally {
+    setLoadingCatalogs(false);
+  }
+};
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4500);
+  };
+
+  const handleFormChange = (e) => {
     const { name, value } = e.target;
 
     setForm((prevForm) => ({
@@ -60,187 +135,241 @@ function TechnicalCreateEvaluation() {
     }));
   };
 
-  const updateQuestion = (questionId, field, value) => {
-    setQuestionList((prevQuestions) =>
-      prevQuestions.map((item) => {
-        if (item.id !== questionId) return item;
+  const buildOptionsByType = (type) => {
+    if (type === "VERDADERO_FALSO") {
+      return [
+        { texto: "Verdadero", esCorrecta: true },
+        { texto: "Falso", esCorrecta: false },
+      ];
+    }
 
-        if (field === "type") {
-          if (value === "Opción múltiple") {
-            return {
-              ...item,
-              type: value,
-              options: item.options?.length ? item.options : ["", "", "", ""],
-              correctAnswer: "",
-            };
-          }
+    if (type === "MULTIPLE") {
+      return [
+        { texto: "", esCorrecta: true },
+        { texto: "", esCorrecta: false },
+      ];
+    }
 
-          if (value === "Verdadero/Falso") {
-            return {
-              ...item,
-              type: value,
-              options: ["Verdadero", "Falso"],
-              correctAnswer: "",
-            };
-          }
+    return [];
+  };
 
+  const handleQuestionChange = (index, field, value) => {
+    setQuestions((prevQuestions) =>
+      prevQuestions.map((question, questionIndex) => {
+        if (questionIndex !== index) return question;
+
+        if (field === "tipoPregunta") {
           return {
-            ...item,
-            type: value,
-            options: [],
-            correctAnswer: "",
+            ...question,
+            tipoPregunta: value,
+            opciones: buildOptionsByType(value),
           };
         }
 
         return {
-          ...item,
-          [field]: value,
+          ...question,
+          [field]: field === "puntaje" || field === "orden" ? Number(value) : value,
         };
       })
     );
   };
 
-  const updateOption = (questionId, optionIndex, value) => {
-    setQuestionList((prevQuestions) =>
-      prevQuestions.map((item) => {
-        if (item.id !== questionId) return item;
+  const handleOptionChange = (questionIndex, optionIndex, field, value) => {
+    setQuestions((prevQuestions) =>
+      prevQuestions.map((question, currentQuestionIndex) => {
+        if (currentQuestionIndex !== questionIndex) return question;
 
-        const updatedOptions = [...item.options];
-        updatedOptions[optionIndex] = value;
+        const updatedOptions = question.opciones.map((option, currentOptionIndex) => {
+          if (currentOptionIndex !== optionIndex) {
+            return field === "esCorrecta"
+              ? { ...option, esCorrecta: false }
+              : option;
+          }
 
-        return {
-          ...item,
-          options: updatedOptions,
-          correctAnswer:
-            item.correctAnswer === item.options[optionIndex]
-              ? value
-              : item.correctAnswer,
-        };
-      })
-    );
-  };
-
-  const addOption = (questionId) => {
-    setQuestionList((prevQuestions) =>
-      prevQuestions.map((item) =>
-        item.id === questionId
-          ? {
-              ...item,
-              options: [...item.options, ""],
-            }
-          : item
-      )
-    );
-  };
-
-  const removeOption = (questionId, optionIndex) => {
-    setQuestionList((prevQuestions) =>
-      prevQuestions.map((item) => {
-        if (item.id !== questionId) return item;
-
-        const optionToRemove = item.options[optionIndex];
-        const updatedOptions = item.options.filter(
-          (_, index) => index !== optionIndex
-        );
+          return {
+            ...option,
+            [field]: field === "esCorrecta" ? true : value,
+          };
+        });
 
         return {
-          ...item,
-          options: updatedOptions,
-          correctAnswer:
-            item.correctAnswer === optionToRemove ? "" : item.correctAnswer,
+          ...question,
+          opciones: updatedOptions,
         };
       })
     );
   };
 
   const addQuestion = () => {
-    setQuestionList((prevQuestions) => [
+    setQuestions((prevQuestions) => [
       ...prevQuestions,
-      createEmptyQuestion(),
+      {
+        ...initialQuestion,
+        orden: prevQuestions.length + 1,
+      },
     ]);
   };
 
-  const removeQuestion = (questionId) => {
-    setQuestionList((prevQuestions) =>
-      prevQuestions.filter((item) => item.id !== questionId)
+  const removeQuestion = (index) => {
+    if (questions.length === 1) {
+      showMessage("La evaluación debe tener al menos una pregunta.", "error");
+      return;
+    }
+
+    setQuestions((prevQuestions) =>
+      prevQuestions
+        .filter((_, questionIndex) => questionIndex !== index)
+        .map((question, questionIndex) => ({
+          ...question,
+          orden: questionIndex + 1,
+        }))
     );
   };
 
-  const validateQuestions = () => {
-    const completedQuestions = questionList.filter(
-      (item) => item.question.trim() !== ""
+  const addOption = (questionIndex) => {
+    setQuestions((prevQuestions) =>
+      prevQuestions.map((question, currentQuestionIndex) => {
+        if (currentQuestionIndex !== questionIndex) return question;
+
+        return {
+          ...question,
+          opciones: [...question.opciones, { texto: "", esCorrecta: false }],
+        };
+      })
     );
+  };
 
-    if (completedQuestions.length === 0) {
-      return "Agrega al menos una pregunta.";
-    }
+  const removeOption = (questionIndex, optionIndex) => {
+    setQuestions((prevQuestions) =>
+      prevQuestions.map((question, currentQuestionIndex) => {
+        if (currentQuestionIndex !== questionIndex) return question;
 
-    for (const question of completedQuestions) {
-      if (question.type === "Opción múltiple") {
-        const validOptions = question.options.filter(
-          (option) => option.trim() !== ""
+        if (question.opciones.length <= 2) {
+          showMessage("Una pregunta cerrada debe tener al menos dos opciones.", "error");
+          return question;
+        }
+
+        const updatedOptions = question.opciones.filter(
+          (_, currentOptionIndex) => currentOptionIndex !== optionIndex
         );
 
-        if (validOptions.length < 2) {
-          return "Cada pregunta de opción múltiple debe tener al menos 2 alternativas.";
+        if (!updatedOptions.some((option) => option.esCorrecta)) {
+          updatedOptions[0].esCorrecta = true;
         }
+
+        return {
+          ...question,
+          opciones: updatedOptions,
+        };
+      })
+    );
+  };
+
+  const validateForm = () => {
+    if (!form.vacanteId) return "Selecciona una vacante.";
+    if (!form.tecnicoId) return "Selecciona un líder técnico.";
+
+    if (!form.titulo.trim()) return "Ingresa el título de la evaluación.";
+    if (form.titulo.trim().length < 5)
+      return "El título debe tener al menos 5 caracteres.";
+
+    if (!form.duracionMinutos || Number(form.duracionMinutos) <= 0)
+      return "La duración debe ser mayor a cero.";
+
+    if (!form.puntajeMaximo || Number(form.puntajeMaximo) <= 0)
+      return "El puntaje máximo debe ser mayor a cero.";
+
+    if (questions.length === 0)
+      return "La evaluación debe tener al menos una pregunta.";
+
+    if (totalPoints > Number(form.puntajeMaximo)) {
+      return "La suma de puntajes no puede superar el puntaje máximo.";
+    }
+
+    for (const question of questions) {
+      if (!question.enunciado.trim()) {
+        return "Todas las preguntas deben tener enunciado.";
       }
 
-      if (
-        ["Opción múltiple", "Verdadero/Falso"].includes(question.type) &&
-        !question.correctAnswer
-      ) {
-        return "Selecciona la respuesta correcta en las preguntas cerradas.";
+      if (!question.puntaje || Number(question.puntaje) <= 0) {
+        return "Todas las preguntas deben tener puntaje mayor a cero.";
+      }
+
+      if (closedQuestionTypes.includes(question.tipoPregunta)) {
+        if (!question.opciones || question.opciones.length < 2) {
+          return "Las preguntas cerradas deben tener al menos dos opciones.";
+        }
+
+        const emptyOption = question.opciones.some(
+          (option) => !option.texto.trim()
+        );
+
+        if (emptyOption) {
+          return "Todas las opciones deben tener texto.";
+        }
+
+        const correctOptions = question.opciones.filter(
+          (option) => option.esCorrecta
+        );
+
+        if (correctOptions.length !== 1) {
+          return "Cada pregunta cerrada debe tener exactamente una respuesta correcta.";
+        }
       }
     }
 
     return null;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!form.title) {
-      setMessage("Ingresa un título para la evaluación.");
-      setMessageType("error");
+    const validationError = validateForm();
+
+    if (validationError) {
+      showMessage(validationError, "error");
       return;
     }
 
-    if (!form.duration || Number(form.duration) <= 0) {
-      setMessage("Ingresa una duración válida.");
-      setMessageType("error");
-      return;
+    const payload = {
+      vacanteId: Number(form.vacanteId),
+      tecnicoId: Number(form.tecnicoId),
+      titulo: form.titulo.trim(),
+      descripcion: form.descripcion.trim() || null,
+      duracionMinutos: Number(form.duracionMinutos),
+      puntajeMaximo: Number(form.puntajeMaximo),
+      preguntas: questions.map((question, index) => ({
+        tipoPregunta: question.tipoPregunta,
+        enunciado: question.enunciado.trim(),
+        puntaje: Number(question.puntaje),
+        orden: index + 1,
+        opciones: closedQuestionTypes.includes(question.tipoPregunta)
+          ? question.opciones.map((option) => ({
+              texto: option.texto.trim(),
+              esCorrecta: Boolean(option.esCorrecta),
+            }))
+          : [],
+      })),
+    };
+
+    try {
+      setSaving(true);
+
+      await evaluacionService.create(payload);
+
+      showMessage("Evaluación creada correctamente.", "success");
+
+      setTimeout(() => {
+        navigate("/technical/evaluaciones");
+      }, 900);
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudo crear la evaluación.",
+        "error"
+      );
+    } finally {
+      setSaving(false);
     }
-
-    const questionError = validateQuestions();
-
-    if (questionError) {
-      setMessage(questionError);
-      setMessageType("error");
-      return;
-    }
-
-    const completedQuestions = questionList
-      .filter((item) => item.question.trim() !== "")
-      .map((item) => ({
-        ...item,
-        options: item.options?.filter((option) => option.trim() !== "") || [],
-      }));
-
-    createEvaluation({
-      title: form.title,
-      area: form.area,
-      duration: Number(form.duration),
-      questions: completedQuestions.length,
-      questionList: completedQuestions,
-    });
-
-    setMessage("Evaluación creada correctamente. Redirigiendo al banco técnico...");
-    setMessageType("success");
-
-    setTimeout(() => {
-      navigate("/technical/evaluaciones");
-    }, 900);
   };
 
   const alertStyles = {
@@ -253,7 +382,7 @@ function TechnicalCreateEvaluation() {
     <div>
       <SectionHeader
         title="Crear evaluación técnica"
-        description="Diseña una evaluación reutilizable para asignarla a candidatos aprobados por RRHH."
+        description="Crea una evaluación ligada a una vacante y define sus preguntas."
       />
 
       {message && (
@@ -266,322 +395,407 @@ function TechnicalCreateEvaluation() {
 
       <form
         onSubmit={handleSubmit}
-        className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-6"
+        className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6"
       >
-        <aside className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] p-7 shadow-sm h-fit">
-          <div className="flex items-center gap-3 mb-7">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center">
-              <ClipboardList size={24} />
-            </div>
+        <section className="space-y-6">
+          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
+            <div className="flex items-center gap-3 mb-7">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center">
+                <BookOpenCheck size={24} />
+              </div>
 
-            <div>
-              <h2 className="text-2xl font-black text-slate-900">
-                Datos generales
-              </h2>
-              <p className="text-sm text-slate-500">
-                Configuración base de la prueba.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Título de evaluación *
-              </label>
-              <input
-                name="title"
-                value={form.title}
-                onChange={handleChange}
-                placeholder="Ej: Evaluación React Junior"
-                className="input-light"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Área
-              </label>
-              <div className="relative">
-                <Layers3
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
-                />
-                <select
-                  name="area"
-                  value={form.area}
-                  onChange={handleChange}
-                  className={inputWithIconClass}
-                >
-                  {areas.map((area) => (
-                    <option key={area.id} value={area.name}>
-                      {area.name}
-                    </option>
-                  ))}
-                </select>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900">
+                  Datos principales
+                </h2>
+                <p className="text-sm text-slate-500">
+                  La evaluación quedará asociada a una vacante específica.
+                </p>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Duración en minutos *
-              </label>
-              <div className="relative">
-                <Clock
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
-                />
-                <input
-                  type="number"
-                  name="duration"
-                  value={form.duration}
-                  onChange={handleChange}
-                  min="1"
-                  className={inputWithIconClass}
-                />
+            {loadingCatalogs ? (
+              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-8 text-center">
+                <h3 className="text-xl font-black text-slate-900">
+                  Cargando catálogos...
+                </h3>
+                <p className="text-slate-500 mt-2">
+                  Consultando vacantes y líderes técnicos desde MySQL.
+                </p>
               </div>
-            </div>
-
-            <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-sky-50 border border-emerald-100 p-5">
-              <div className="flex items-start gap-3">
-                <Sparkles
-                  size={22}
-                  className="text-emerald-600 shrink-0 mt-1"
-                />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <h3 className="font-black text-slate-900">
-                    Evaluación reusable
-                  </h3>
-                  <p className="text-sm text-slate-600 mt-1">
-                    Esta prueba quedará en el banco técnico y podrá asignarse a
-                    diferentes postulantes.
-                  </p>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Vacante *
+                  </label>
+                  <div className="relative">
+                    <Briefcase
+                      size={18}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
+                    />
+                    <select
+                      name="vacanteId"
+                      value={form.vacanteId}
+                      onChange={handleFormChange}
+                      className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      {vacantes.map((vacante) => (
+                        <option key={vacante.id} value={vacante.id}>
+                          {vacante.titulo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Líder técnico *
+                  </label>
+                  <div className="relative">
+                    <UserRound
+                      size={18}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
+                    />
+                    <select
+                      name="tecnicoId"
+                      value={form.tecnicoId}
+                      onChange={handleFormChange}
+                      className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      {tecnicos.map((tecnico) => (
+                        <option key={tecnico.id} value={tecnico.id}>
+                          {tecnico.nombreCompleto}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Título *
+                  </label>
+                  <input
+                    name="titulo"
+                    value={form.titulo}
+                    onChange={handleFormChange}
+                    placeholder="Ej: Evaluación Backend Spring Boot"
+                    className="input-light"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Descripción
+                  </label>
+                  <textarea
+                    name="descripcion"
+                    value={form.descripcion}
+                    onChange={handleFormChange}
+                    placeholder="Describe el objetivo de la evaluación..."
+                    className="w-full min-h-28 border border-slate-300 rounded-xl p-4 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Duración *
+                  </label>
+                  <div className="relative">
+                    <Clock
+                      size={18}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
+                    />
+                    <input
+                      type="number"
+                      name="duracionMinutos"
+                      value={form.duracionMinutos}
+                      onChange={handleFormChange}
+                      className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Puntaje máximo *
+                  </label>
+                  <input
+                    type="number"
+                    name="puntajeMaximo"
+                    value={form.puntajeMaximo}
+                    onChange={handleFormChange}
+                    className="input-light"
+                  />
                 </div>
               </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20"
-            >
-              <Save size={18} />
-              Guardar evaluación
-            </button>
+            )}
           </div>
-        </aside>
 
-        <section className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-7">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center">
-                <HelpCircle size={24} />
-              </div>
-
+          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-7">
               <div>
                 <h2 className="text-2xl font-black text-slate-900">
                   Preguntas
                 </h2>
                 <p className="text-sm text-slate-500">
-                  {questionList.length} pregunta(s) agregada(s)
+                  Puedes combinar preguntas de opción múltiple, texto y código.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={addQuestion}
+                className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-2xl font-black"
+              >
+                <Plus size={17} />
+                Agregar pregunta
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {questions.map((question, questionIndex) => (
+                <div
+                  key={questionIndex}
+                  className="rounded-[1.5rem] bg-slate-50 border border-slate-200 p-5"
+                >
+                  <div className="flex items-start justify-between gap-4 mb-5">
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900">
+                        Pregunta {questionIndex + 1}
+                      </h3>
+                      <p className="text-sm text-slate-500">
+                        Orden #{questionIndex + 1}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeQuestion(questionIndex)}
+                      className="inline-flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-2 rounded-xl font-black"
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-[200px_140px_1fr] gap-4">
+                    <div>
+                      <label className="block text-xs font-black text-slate-500 mb-2">
+                        Tipo
+                      </label>
+                      <select
+                        value={question.tipoPregunta}
+                        onChange={(e) =>
+                          handleQuestionChange(
+                            questionIndex,
+                            "tipoPregunta",
+                            e.target.value
+                          )
+                        }
+                        className="input-light"
+                      >
+                        <option value="MULTIPLE">Opción múltiple</option>
+                        <option value="VERDADERO_FALSO">Verdadero/Falso</option>
+                        <option value="TEXTO">Texto</option>
+                        <option value="CODIGO">Código</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-500 mb-2">
+                        Puntaje
+                      </label>
+                      <input
+                        type="number"
+                        value={question.puntaje}
+                        onChange={(e) =>
+                          handleQuestionChange(
+                            questionIndex,
+                            "puntaje",
+                            e.target.value
+                          )
+                        }
+                        className="input-light"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-500 mb-2">
+                        Enunciado
+                      </label>
+                      <input
+                        value={question.enunciado}
+                        onChange={(e) =>
+                          handleQuestionChange(
+                            questionIndex,
+                            "enunciado",
+                            e.target.value
+                          )
+                        }
+                        placeholder="Escribe la pregunta..."
+                        className="input-light"
+                      />
+                    </div>
+                  </div>
+
+                  {closedQuestionTypes.includes(question.tipoPregunta) && (
+                    <div className="mt-5">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <h4 className="font-black text-slate-900">Opciones</h4>
+
+                        {question.tipoPregunta === "MULTIPLE" && (
+                          <button
+                            type="button"
+                            onClick={() => addOption(questionIndex)}
+                            className="inline-flex items-center gap-2 text-emerald-700 font-black text-sm"
+                          >
+                            <Plus size={16} />
+                            Agregar opción
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        {question.opciones.map((option, optionIndex) => (
+                          <div
+                            key={optionIndex}
+                            className="grid grid-cols-1 md:grid-cols-[1fr_120px_auto] gap-3 items-center"
+                          >
+                            <input
+                              value={option.texto}
+                              onChange={(e) =>
+                                handleOptionChange(
+                                  questionIndex,
+                                  optionIndex,
+                                  "texto",
+                                  e.target.value
+                                )
+                              }
+                              disabled={question.tipoPregunta === "VERDADERO_FALSO"}
+                              placeholder={`Opción ${optionIndex + 1}`}
+                              className="input-light"
+                            />
+
+                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                              <input
+                                type="radio"
+                                checked={option.esCorrecta}
+                                onChange={() =>
+                                  handleOptionChange(
+                                    questionIndex,
+                                    optionIndex,
+                                    "esCorrecta",
+                                    true
+                                  )
+                                }
+                                className="accent-emerald-500"
+                              />
+                              Correcta
+                            </label>
+
+                            {question.tipoPregunta === "MULTIPLE" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeOption(questionIndex, optionIndex)
+                                }
+                                className="inline-flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-2 rounded-xl"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <aside className="space-y-6">
+          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm h-fit">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center mb-5">
+              <FileQuestion size={26} />
+            </div>
+
+            <h2 className="text-2xl font-black text-slate-900">
+              Resumen
+            </h2>
+
+            <div className="mt-6 space-y-4">
+              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4">
+                <p className="text-xs font-black text-slate-500">Preguntas</p>
+                <p className="text-3xl font-black text-slate-900">
+                  {questions.length}
+                </p>
+              </div>
+
+              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4">
+                <p className="text-xs font-black text-slate-500">
+                  Puntaje usado
+                </p>
+                <p
+                  className={`text-3xl font-black ${
+                    totalPoints > Number(form.puntajeMaximo)
+                      ? "text-rose-600"
+                      : "text-emerald-600"
+                  }`}
+                >
+                  {totalPoints}/{form.puntajeMaximo || 0}
                 </p>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={addQuestion}
-              className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-2xl font-black transition-colors"
-            >
-              <Plus size={18} />
-              Agregar pregunta
-            </button>
-          </div>
+            <div className="mt-6 rounded-3xl bg-gradient-to-br from-emerald-50 to-sky-50 border border-emerald-100 p-5">
+              <div className="flex items-start gap-3">
+                <Sparkles size={22} className="text-emerald-600 shrink-0 mt-1" />
+                <p className="text-sm text-slate-600">
+                  La evaluación se guardará en MySQL y luego podrá asignarse a
+                  postulaciones aprobadas por RRHH.
+                </p>
+              </div>
+            </div>
 
-          <div className="space-y-5">
-            {questionList.map((item, index) => (
-              <article
-                key={item.id}
-                className="border border-slate-200 rounded-3xl p-5 bg-slate-50/60"
+            <div className="mt-7 flex flex-col gap-3">
+              <button
+                type="submit"
+                disabled={saving || loadingCatalogs}
+                className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 disabled:from-slate-300 disabled:to-slate-300 text-white px-6 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20 disabled:shadow-none"
               >
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <div>
-                    <p className="text-sm font-bold text-emerald-600">
-                      Pregunta {index + 1}
-                    </p>
-                    <h3 className="font-black text-slate-900">
-                      Configuración de pregunta
-                    </h3>
-                  </div>
+                <Save size={18} />
+                {saving ? "Guardando..." : "Crear evaluación"}
+              </button>
 
-                  {questionList.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeQuestion(item.id)}
-                      className="inline-flex items-center gap-2 text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-xl font-bold"
-                    >
-                      <Trash2 size={17} />
-                      Eliminar
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 xl:grid-cols-[1fr_240px] gap-4">
-                  <textarea
-                    value={item.question}
-                    onChange={(e) =>
-                      updateQuestion(item.id, "question", e.target.value)
-                    }
-                    placeholder="Escribe la pregunta que verá el postulante..."
-                    className="input-light min-h-28"
-                  />
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Tipo de pregunta
-                    </label>
-                    <select
-                      value={item.type}
-                      onChange={(e) =>
-                        updateQuestion(item.id, "type", e.target.value)
-                      }
-                      className="input-light"
-                    >
-                      <option value="Opción múltiple">Opción múltiple</option>
-                      <option value="Texto">Texto</option>
-                      <option value="Código">Código</option>
-                      <option value="Verdadero/Falso">Verdadero/Falso</option>
-                    </select>
-                  </div>
-                </div>
-
-                {item.type === "Opción múltiple" && (
-                  <div className="mt-5 bg-white border border-slate-200 rounded-3xl p-5">
-                    <div className="flex items-center justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <ListChecks size={20} className="text-emerald-600" />
-                        <h4 className="font-black text-slate-900">
-                          Alternativas
-                        </h4>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => addOption(item.id)}
-                        className="text-sm font-bold text-emerald-600 hover:text-emerald-700"
-                      >
-                        + Agregar alternativa
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {item.options.map((option, optionIndex) => (
-                        <div
-                          key={`${item.id}-${optionIndex}`}
-                          className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-center"
-                        >
-                          <input
-                            value={option}
-                            onChange={(e) =>
-                              updateOption(
-                                item.id,
-                                optionIndex,
-                                e.target.value
-                              )
-                            }
-                            placeholder={`Alternativa ${optionIndex + 1}`}
-                            className="input-light"
-                          />
-
-                          <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
-                            <input
-                              type="radio"
-                              name={`correct-${item.id}`}
-                              checked={
-                                item.correctAnswer !== "" &&
-                                item.correctAnswer === option
-                              }
-                              disabled={option.trim() === ""}
-                              onChange={() =>
-                                updateQuestion(
-                                  item.id,
-                                  "correctAnswer",
-                                  option
-                                )
-                              }
-                              className="accent-emerald-500"
-                            />
-                            Correcta
-                          </label>
-
-                          {item.options.length > 2 && (
-                            <button
-                              type="button"
-                              onClick={() => removeOption(item.id, optionIndex)}
-                              className="text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-xl font-bold"
-                            >
-                              Quitar
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {item.type === "Verdadero/Falso" && (
-                  <div className="mt-5 bg-white border border-slate-200 rounded-3xl p-5">
-                    <h4 className="font-black text-slate-900 mb-4">
-                      Respuesta correcta
-                    </h4>
-
-                    <div className="flex flex-wrap gap-3">
-                      {["Verdadero", "Falso"].map((option) => (
-                        <label
-                          key={option}
-                          className={`flex items-center gap-2 px-4 py-3 rounded-2xl border cursor-pointer ${
-                            item.correctAnswer === option
-                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                              : "bg-white border-slate-200 text-slate-600"
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name={`correct-${item.id}`}
-                            checked={item.correctAnswer === option}
-                            onChange={() =>
-                              updateQuestion(item.id, "correctAnswer", option)
-                            }
-                            className="accent-emerald-500"
-                          />
-                          <span className="font-bold">{option}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {item.type === "Texto" && (
-                  <div className="mt-5 rounded-2xl bg-white border border-slate-200 p-4">
-                    <p className="text-sm text-slate-500">
-                      Esta pregunta será respondida con texto libre por el
-                      postulante y será revisada manualmente por el líder técnico.
-                    </p>
-                  </div>
-                )}
-
-                {item.type === "Código" && (
-                  <div className="mt-5 rounded-2xl bg-slate-950 border border-slate-800 p-4">
-                    <p className="text-sm text-slate-300">
-                      Esta pregunta permitirá una respuesta tipo código. En una
-                      versión real, se podría integrar un editor como Monaco o
-                      CodeMirror.
-                    </p>
-                  </div>
-                )}
-              </article>
-            ))}
+              <button
+                type="button"
+                onClick={() => navigate("/technical/evaluaciones")}
+                className="w-full inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-2xl font-black"
+              >
+                <X size={18} />
+                Cancelar
+              </button>
+            </div>
           </div>
-        </section>
+
+          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
+            <h3 className="font-black text-slate-900 flex items-center gap-2">
+              <CheckCircle2 size={20} className="text-emerald-600" />
+              Validaciones aplicadas
+            </h3>
+
+            <ul className="mt-4 space-y-2 text-sm text-slate-600">
+              <li>• La evaluación debe tener al menos una pregunta.</li>
+              <li>• La suma de puntos no debe superar el puntaje máximo.</li>
+              <li>• Cada pregunta cerrada debe tener una respuesta correcta.</li>
+              <li>• Texto y código no deben tener opciones.</li>
+            </ul>
+          </div>
+        </aside>
       </form>
     </div>
   );
