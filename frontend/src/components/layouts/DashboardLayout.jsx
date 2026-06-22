@@ -188,7 +188,7 @@ function DashboardLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-100 text-slate-900">
       {/* Mobile topbar */}
       <div className="lg:hidden sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 px-4 py-3 flex items-center justify-between">
         <button
@@ -367,7 +367,7 @@ function DashboardLayout() {
           </div>
         </header>
 
-        <section className="p-5 md:p-8">
+        <section className="p-5 md:p-8 bg-slate-100 min-h-[calc(100vh-73px)]">
           <Outlet />
         </section>
       </main>

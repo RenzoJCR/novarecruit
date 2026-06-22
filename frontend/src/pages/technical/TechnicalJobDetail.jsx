@@ -82,6 +82,50 @@ function TechnicalJobDetail() {
     return evaluaciones.filter((item) => item.estado === "ACTIVA");
   }, [evaluaciones]);
 
+  const getEstadoVisible = (estado) => {
+    const labels = {
+      POSTULADO: "Postulado",
+      EN_REVISION_RRHH: "En revisión",
+      APROBADO_RRHH: "Listo para evaluación",
+      RECHAZADO_RRHH: "No continúa",
+      EVALUACION_PENDIENTE: "Evaluación asignada",
+      EVALUACION_COMPLETADA: "Por revisar",
+      APROBADO_TECNICO: "Apto para selección",
+      RECHAZADO_TECNICO: "No continúa",
+      SELECCIONADO: "Seleccionado",
+      NO_SELECCIONADO: "No seleccionado",
+    };
+
+    return labels[estado] || estado || "Sin estado";
+  };
+
+  const statusClass = (estado) => {
+    const styles = {
+      POSTULADO: "bg-slate-50 text-slate-600 border-slate-200",
+      EN_REVISION_RRHH: "bg-sky-50 text-sky-700 border-sky-200",
+      APROBADO_RRHH: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      RECHAZADO_RRHH: "bg-rose-50 text-rose-700 border-rose-200",
+      EVALUACION_PENDIENTE: "bg-indigo-50 text-indigo-700 border-indigo-200",
+      EVALUACION_COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
+      APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
+      SELECCIONADO: "bg-amber-50 text-amber-700 border-amber-200",
+      NO_SELECCIONADO: "bg-slate-50 text-slate-600 border-slate-200",
+    };
+
+    return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return "Sin fecha";
+
+    return new Date(value).toLocaleString("es-PE", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  };
+
+
   const candidatosFiltrados = useMemo(() => {
     const value = search.toLowerCase().trim();
 
@@ -196,48 +240,7 @@ function TechnicalJobDetail() {
     }
   };
 
-  const getEstadoVisible = (estado) => {
-    const labels = {
-      POSTULADO: "Postulado",
-      EN_REVISION_RRHH: "En revisión",
-      APROBADO_RRHH: "Listo para evaluación",
-      RECHAZADO_RRHH: "No continúa",
-      EVALUACION_PENDIENTE: "Evaluación asignada",
-      EVALUACION_COMPLETADA: "Por revisar",
-      APROBADO_TECNICO: "Apto para selección",
-      RECHAZADO_TECNICO: "No continúa",
-      SELECCIONADO: "Seleccionado",
-      NO_SELECCIONADO: "No seleccionado",
-    };
 
-    return labels[estado] || estado || "Sin estado";
-  };
-
-  const statusClass = (estado) => {
-    const styles = {
-      POSTULADO: "bg-slate-50 text-slate-600 border-slate-200",
-      EN_REVISION_RRHH: "bg-sky-50 text-sky-700 border-sky-200",
-      APROBADO_RRHH: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      RECHAZADO_RRHH: "bg-rose-50 text-rose-700 border-rose-200",
-      EVALUACION_PENDIENTE: "bg-indigo-50 text-indigo-700 border-indigo-200",
-      EVALUACION_COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
-      APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
-      SELECCIONADO: "bg-amber-50 text-amber-700 border-amber-200",
-      NO_SELECCIONADO: "bg-slate-50 text-slate-600 border-slate-200",
-    };
-
-    return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
-  };
-
-  const formatDateTime = (value) => {
-    if (!value) return "Sin fecha";
-
-    return new Date(value).toLocaleString("es-PE", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
-  };
 
   const alertStyles = {
     info: "bg-sky-50 border-sky-200 text-sky-700",
