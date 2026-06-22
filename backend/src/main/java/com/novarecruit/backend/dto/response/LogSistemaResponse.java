@@ -9,11 +9,13 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @Builder
-public class AreaResponse {
+public class LogSistemaResponse {
 
     private Long id;
-    private String nombre;
+    private Long usuarioId;
+    private String accion;
+    private String modulo;
     private String descripcion;
-    private Boolean estado;
-    private LocalDateTime createdAt;
+    private LocalDateTime fechaHora;
+    private String ipOrigen;
 }

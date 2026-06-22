@@ -23,6 +23,11 @@ public class AreaController {
         return areaService.listarAreas();
     }
 
+    @GetMapping("/activas")
+    public List<AreaResponse> listarAreasActivas() {
+        return areaService.listarAreasActivas();
+    }
+
     @GetMapping("/{id}")
     public AreaResponse obtenerAreaPorId(@PathVariable Long id) {
         return areaService.obtenerAreaPorId(id);
@@ -44,7 +49,7 @@ public class AreaController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void eliminarArea(@PathVariable Long id) {
-        areaService.eliminarArea(id);
+    public void desactivarArea(@PathVariable Long id) {
+        areaService.desactivarArea(id);
     }
 }

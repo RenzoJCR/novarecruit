@@ -14,7 +14,7 @@ public class AreaRequest {
     private String nombre;
 
     @NotBlank(message = "La descripción del área es obligatoria.")
-    @Size(min = 10, message = "La descripción debe tener al menos 10 caracteres.")
+    @Size(min = 10, max = 255, message = "La descripción debe tener entre 10 y 255 caracteres.")
     private String descripcion;
 
     private Boolean estado;
