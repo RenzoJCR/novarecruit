@@ -13,10 +13,11 @@ import {
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { evaluacionPostulacionService } from "../../services/evaluacionPostulacionService.js";
-
-const TEMP_POSTULANTE_ID = 4;
+import { useAuth } from "../../context/AuthContext.jsx";
 
 function ApplicantEvaluations() {
+  const { currentUser } = useAuth();
+
   const [evaluaciones, setEvaluaciones] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("Todos");
@@ -51,10 +52,16 @@ function ApplicantEvaluations() {
   ).length;
 
   const loadEvaluaciones = async () => {
+    if (!currentUser?.id) {
+      setMessage("No se encontró el usuario autenticado.");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const data = await evaluacionPostulacionService.getByPostulante(
-        TEMP_POSTULANTE_ID
+        currentUser.id
       );
       setEvaluaciones(data);
     } catch (error) {
@@ -66,7 +73,7 @@ function ApplicantEvaluations() {
 
   useEffect(() => {
     loadEvaluaciones();
-  }, []);
+  }, [currentUser?.id]);
 
   const formatDateTime = (value) => {
     if (!value) return "Sin fecha";
@@ -102,7 +109,9 @@ function ApplicantEvaluations() {
     <div>
       <SectionHeader
         title="Mis evaluaciones técnicas"
-        description="Resuelve las evaluaciones asignadas por el líder técnico."
+        description={`Evaluaciones asignadas para ${
+          currentUser?.nombreCompleto || "tu cuenta"
+        }.`}
       />
 
       {message && (

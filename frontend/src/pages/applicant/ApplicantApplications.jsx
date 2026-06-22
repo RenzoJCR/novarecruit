@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Briefcase,
   Calendar,
   CheckCircle2,
   Clock,
@@ -11,10 +10,11 @@ import {
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { postulacionService } from "../../services/postulacionService.js";
-
-const TEMP_POSTULANTE_ID = 4;
+import { useAuth } from "../../context/AuthContext.jsx";
 
 function ApplicantApplications() {
+  const { currentUser } = useAuth();
+
   const [postulaciones, setPostulaciones] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("Todos");
@@ -37,9 +37,15 @@ function ApplicantApplications() {
   }, [postulaciones, search, selectedStatus]);
 
   const loadPostulaciones = async () => {
+    if (!currentUser?.id) {
+      setMessage("No se encontró el usuario autenticado.");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await postulacionService.getByUsuario(TEMP_POSTULANTE_ID);
+      const data = await postulacionService.getByUsuario(currentUser.id);
       setPostulaciones(data);
     } catch (error) {
       setMessage(error.userMessage || "No se pudieron cargar tus postulaciones.");
@@ -50,7 +56,7 @@ function ApplicantApplications() {
 
   useEffect(() => {
     loadPostulaciones();
-  }, []);
+  }, [currentUser?.id]);
 
   const formatDateTime = (value) => {
     if (!value) return "Sin fecha";
@@ -80,9 +86,11 @@ function ApplicantApplications() {
 
   const statusIcon = (status) => {
     if (status?.includes("RECHAZADO")) return <XCircle size={18} />;
+
     if (status === "SELECCIONADO" || status?.includes("APROBADO")) {
       return <CheckCircle2 size={18} />;
     }
+
     return <Clock size={18} />;
   };
 
@@ -90,7 +98,9 @@ function ApplicantApplications() {
     <div>
       <SectionHeader
         title="Mis postulaciones"
-        description="Consulta el estado real de tus postulaciones registradas en el sistema."
+        description={`Consulta el estado real de tus postulaciones, ${
+          currentUser?.nombreCompleto || "postulante"
+        }.`}
       />
 
       {message && (
@@ -121,7 +131,11 @@ function ApplicantApplications() {
           <option value="APROBADO_RRHH">Aprobado RRHH</option>
           <option value="RECHAZADO_RRHH">Rechazado RRHH</option>
           <option value="EVALUACION_PENDIENTE">Evaluación pendiente</option>
+          <option value="EVALUACION_COMPLETADA">Evaluación completada</option>
+          <option value="APROBADO_TECNICO">Aprobado técnico</option>
+          <option value="RECHAZADO_TECNICO">Rechazado técnico</option>
           <option value="SELECCIONADO">Seleccionado</option>
+          <option value="NO_SELECCIONADO">No seleccionado</option>
         </select>
 
         <button
@@ -206,11 +220,13 @@ function ApplicantApplications() {
                   <p className="font-black text-slate-900 mb-2">
                     Comentarios del proceso
                   </p>
+
                   {postulacion.comentarioRrhh && (
                     <p className="text-sm text-slate-600">
                       <strong>RRHH:</strong> {postulacion.comentarioRrhh}
                     </p>
                   )}
+
                   {postulacion.comentarioTecnico && (
                     <p className="text-sm text-slate-600 mt-2">
                       <strong>Técnico:</strong> {postulacion.comentarioTecnico}

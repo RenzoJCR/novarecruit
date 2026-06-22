@@ -9,18 +9,25 @@ import {
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { notificacionService } from "../../services/notificacionService.js";
-
-const TEMP_POSTULANTE_ID = 4;
+import { useAuth } from "../../context/AuthContext.jsx";
 
 function ApplicantNotifications() {
+  const { currentUser } = useAuth();
+
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const loadNotifications = async () => {
+    if (!currentUser?.id) {
+      setMessage("No se encontró el usuario autenticado.");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await notificacionService.getByUsuario(TEMP_POSTULANTE_ID);
+      const data = await notificacionService.getByUsuario(currentUser.id);
       setNotifications(data);
     } catch (error) {
       setMessage(error.userMessage || "No se pudieron cargar las notificaciones.");
@@ -31,7 +38,7 @@ function ApplicantNotifications() {
 
   useEffect(() => {
     loadNotifications();
-  }, []);
+  }, [currentUser?.id]);
 
   const handleMarkAsRead = async (notification) => {
     try {
@@ -63,7 +70,9 @@ function ApplicantNotifications() {
     <div>
       <SectionHeader
         title="Notificaciones"
-        description="Consulta las actualizaciones reales de tus postulaciones."
+        description={`Actualizaciones del proceso para ${
+          currentUser?.nombreCompleto || "tu cuenta"
+        }.`}
         action={
           <button
             onClick={loadNotifications}

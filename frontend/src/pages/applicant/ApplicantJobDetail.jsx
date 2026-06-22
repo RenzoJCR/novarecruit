@@ -9,18 +9,17 @@ import {
   FileText,
   MapPin,
   Send,
-  Sparkles,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { vacanteService } from "../../services/vacanteService.js";
 import { postulacionService } from "../../services/postulacionService.js";
-
-const TEMP_POSTULANTE_ID = 4;
+import { useAuth } from "../../context/AuthContext.jsx";
 
 function ApplicantJobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
   const [vacante, setVacante] = useState(null);
   const [declaredSkills, setDeclaredSkills] = useState([]);
@@ -79,6 +78,10 @@ function ApplicantJobDetail() {
   };
 
   const validateApplication = () => {
+    if (!currentUser?.id) {
+      return "No se encontró el usuario autenticado. Inicia sesión nuevamente.";
+    }
+
     if (!vacante) return "No se encontró la vacante.";
 
     if (vacante.estado !== "ACTIVA" && vacante.estado !== "EN_PROCESO") {
@@ -117,7 +120,7 @@ function ApplicantJobDetail() {
     }
 
     const payload = {
-      usuarioId: TEMP_POSTULANTE_ID,
+      usuarioId: Number(currentUser.id),
       vacanteId: Number(id),
       habilidades: declaredSkills.map((item) => ({
         habilidadId: Number(item.habilidadId),
@@ -135,7 +138,10 @@ function ApplicantJobDetail() {
         navigate("/applicant/postulaciones");
       }, 900);
     } catch (error) {
-      showMessage(error.userMessage || "No se pudo enviar la postulación.", "error");
+      showMessage(
+        error.userMessage || "No se pudo enviar la postulación.",
+        "error"
+      );
     } finally {
       setSending(false);
     }
@@ -321,7 +327,11 @@ function ApplicantJobDetail() {
                     <select
                       value={declaredSkills[index]?.nivelPostulante || "BASICO"}
                       onChange={(e) =>
-                        handleSkillChange(index, "nivelPostulante", e.target.value)
+                        handleSkillChange(
+                          index,
+                          "nivelPostulante",
+                          e.target.value
+                        )
                       }
                       className="input-light"
                     >
@@ -341,7 +351,11 @@ function ApplicantJobDetail() {
                       min="0"
                       value={declaredSkills[index]?.aniosExperiencia || 0}
                       onChange={(e) =>
-                        handleSkillChange(index, "aniosExperiencia", e.target.value)
+                        handleSkillChange(
+                          index,
+                          "aniosExperiencia",
+                          e.target.value
+                        )
                       }
                       className="input-light"
                     />
@@ -389,8 +403,9 @@ function ApplicantJobDetail() {
             <div className="flex items-start gap-3">
               <FileText size={20} className="text-emerald-600 shrink-0 mt-1" />
               <p className="text-sm text-slate-600">
-                Por ahora estás postulando con el usuario de prueba Carlos
-                Mendoza. Luego se reemplazará por el usuario autenticado con JWT.
+                Estás postulando como{" "}
+                <strong>{currentUser?.nombreCompleto || "usuario autenticado"}</strong>.
+                Esta acción quedará asociada a tu cuenta.
               </p>
             </div>
           </div>

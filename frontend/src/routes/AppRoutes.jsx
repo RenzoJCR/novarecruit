@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import PublicLayout from "../components/layouts/PublicLayout.jsx";
 import DashboardLayout from "../components/layouts/DashboardLayout.jsx";
+import ProtectedRoute from "./ProtectedRoute.jsx";
 
 import Home from "../pages/public/Home.jsx";
 import PublicJobs from "../pages/public/PublicJobs.jsx";
@@ -44,22 +45,34 @@ import AdminSettings from "../pages/admin/AdminSettings.jsx";
 function AppRoutes() {
   return (
     <Routes>
-      {/* Rutas de autenticación sin layout */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/change-password" element={<ChangePassword />} />
-
-      {/* Rutas públicas */}
+      {/* Rutas públicas con barra de navegación */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/vacantes" element={<PublicJobs />} />
         <Route path="/vacantes/:id" element={<PublicJobDetail />} />
+
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute>
+              <ChangePassword />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
-      {/* Rutas internas */}
-      <Route element={<DashboardLayout />}>
-        {/* Postulante */}
+      {/* Rutas del postulante */}
+      <Route
+        element={
+          <ProtectedRoute allowedRoles={["POSTULANTE"]}>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route
           path="/applicant"
           element={<Navigate to="/applicant/dashboard" replace />}
@@ -87,8 +100,16 @@ function AppRoutes() {
           element={<ApplicantNotifications />}
         />
         <Route path="/applicant/perfil" element={<ApplicantProfile />} />
+      </Route>
 
-        {/* RRHH */}
+      {/* Rutas de RRHH */}
+      <Route
+        element={
+          <ProtectedRoute allowedRoles={["RECURSOS_HUMANOS"]}>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route
           path="/rrhh"
           element={<Navigate to="/rrhh/dashboard" replace />}
@@ -99,8 +120,16 @@ function AppRoutes() {
         <Route path="/rrhh/postulaciones" element={<RrhhApplications />} />
         <Route path="/rrhh/candidatos" element={<RrhhCandidates />} />
         <Route path="/rrhh/entrevistas" element={<RrhhInterviews />} />
+      </Route>
 
-        {/* Líder técnico */}
+      {/* Rutas de líder técnico */}
+      <Route
+        element={
+          <ProtectedRoute allowedRoles={["LIDER_TECNICO"]}>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route
           path="/technical"
           element={<Navigate to="/technical/dashboard" replace />}
@@ -119,8 +148,16 @@ function AppRoutes() {
           element={<TechnicalApplicants />}
         />
         <Route path="/technical/resultados" element={<TechnicalResults />} />
+      </Route>
 
-        {/* Administrador */}
+      {/* Rutas de administrador */}
+      <Route
+        element={
+          <ProtectedRoute allowedRoles={["ADMINISTRADOR"]}>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route
           path="/admin"
           element={<Navigate to="/admin/dashboard" replace />}
@@ -133,7 +170,6 @@ function AppRoutes() {
         <Route path="/admin/configuracion" element={<AdminSettings />} />
       </Route>
 
-      {/* Ruta no encontrada */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
