@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   UserPlus,
@@ -8,17 +8,23 @@ import {
   CheckCircle2,
   Save,
   Sparkles,
+  Phone,
+  X,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
-import { useData } from "../../context/DataContext.jsx";
+import { userService } from "../../services/userService.js";
+import { roleService } from "../../services/roleService.js";
 
 const initialForm = {
-  name: "",
-  email: "",
-  role: "RECURSOS_HUMANOS",
+  nombres: "",
+  apellidos: "",
+  correo: "",
+  telefono: "",
   password: "",
   confirmPassword: "",
+  rolId: "",
+  estado: true,
 };
 
 const inputWithIconClass =
@@ -26,56 +32,117 @@ const inputWithIconClass =
 
 function AdminCreateUser() {
   const navigate = useNavigate();
-  const { createSystemUser } = useData();
 
+  const [roles, setRoles] = useState([]);
   const [form, setForm] = useState(initialForm);
+
+  const [loadingRoles, setLoadingRoles] = useState(true);
+  const [saving, setSaving] = useState(false);
+
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
+  useEffect(() => {
+    loadRoles();
+  }, []);
+
+  const loadRoles = async () => {
+    try {
+      setLoadingRoles(true);
+      const data = await roleService.getActive();
+      setRoles(data);
+
+      if (data.length > 0) {
+        const rrhhRole = data.find((role) => role.nombre === "RECURSOS_HUMANOS");
+
+        setForm((prevForm) => ({
+          ...prevForm,
+          rolId: rrhhRole ? rrhhRole.id : data[0].id,
+        }));
+      }
+    } catch (error) {
+      showMessage(error.userMessage || "No se pudieron cargar los roles.", "error");
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 3500);
+  };
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
 
     setForm((prevForm) => ({
       ...prevForm,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
-  const handleSubmit = (e) => {
+  const validateForm = () => {
+    if (!form.nombres.trim()) return "Ingresa los nombres del usuario.";
+    if (form.nombres.trim().length < 2) return "Los nombres deben tener al menos 2 caracteres.";
+
+    if (!form.apellidos.trim()) return "Ingresa los apellidos del usuario.";
+    if (form.apellidos.trim().length < 2) return "Los apellidos deben tener al menos 2 caracteres.";
+
+    if (!form.correo.trim()) return "Ingresa el correo del usuario.";
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.correo.trim())) return "Ingresa un correo válido.";
+
+    if (!form.password) return "Ingresa una contraseña temporal.";
+    if (form.password.length < 8) return "La contraseña debe tener al menos 8 caracteres.";
+
+    if (form.password !== form.confirmPassword) return "Las contraseñas no coinciden.";
+
+    if (!form.rolId) return "Selecciona un rol para el usuario.";
+
+    return null;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!form.name || !form.email || !form.password || !form.confirmPassword) {
-      setMessage("Completa todos los campos obligatorios.");
-      setMessageType("error");
+    const validationError = validateForm();
+
+    if (validationError) {
+      showMessage(validationError, "error");
       return;
     }
 
-    if (form.password.length < 6) {
-      setMessage("La contraseña debe tener al menos 6 caracteres.");
-      setMessageType("error");
-      return;
+    const payload = {
+      nombres: form.nombres.trim(),
+      apellidos: form.apellidos.trim(),
+      correo: form.correo.trim().toLowerCase(),
+      password: form.password,
+      telefono: form.telefono.trim() || null,
+      fotoPerfil: null,
+      estado: form.estado,
+      rolId: Number(form.rolId),
+    };
+
+    try {
+      setSaving(true);
+
+      await userService.create(payload);
+
+      showMessage("Usuario creado correctamente.", "success");
+
+      setTimeout(() => {
+        navigate("/admin/usuarios");
+      }, 900);
+    } catch (error) {
+      showMessage(error.userMessage || "No se pudo crear el usuario.", "error");
+    } finally {
+      setSaving(false);
     }
-
-    if (form.password !== form.confirmPassword) {
-      setMessage("Las contraseñas no coinciden.");
-      setMessageType("error");
-      return;
-    }
-
-    createSystemUser({
-      name: form.name,
-      email: form.email,
-      role: form.role,
-      temporaryPassword: form.password,
-      mustChangePassword: true,
-    });
-
-    setMessage("Usuario creado correctamente con contraseña temporal.");
-    setMessageType("success");
-
-    setTimeout(() => {
-      navigate("/admin/usuarios");
-    }, 900);
   };
 
   const alertStyles = {
@@ -122,7 +189,7 @@ function AdminCreateUser() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
-                Nombre completo *
+                Nombres *
               </label>
               <div className="relative">
                 <UserPlus
@@ -130,10 +197,10 @@ function AdminCreateUser() {
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
                 />
                 <input
-                  name="name"
-                  value={form.name}
+                  name="nombres"
+                  value={form.nombres}
                   onChange={handleChange}
-                  placeholder="Ej: Ana Gutiérrez"
+                  placeholder="Ej: Ana"
                   className={inputWithIconClass}
                 />
               </div>
@@ -141,7 +208,26 @@ function AdminCreateUser() {
 
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
-                Correo institucional *
+                Apellidos *
+              </label>
+              <div className="relative">
+                <UserPlus
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
+                />
+                <input
+                  name="apellidos"
+                  value={form.apellidos}
+                  onChange={handleChange}
+                  placeholder="Ej: Gutiérrez"
+                  className={inputWithIconClass}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Correo *
               </label>
               <div className="relative">
                 <Mail
@@ -150,10 +236,29 @@ function AdminCreateUser() {
                 />
                 <input
                   type="email"
-                  name="email"
-                  value={form.email}
+                  name="correo"
+                  value={form.correo}
                   onChange={handleChange}
                   placeholder="correo@novatech.com"
+                  className={inputWithIconClass}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Teléfono
+              </label>
+              <div className="relative">
+                <Phone
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
+                />
+                <input
+                  name="telefono"
+                  value={form.telefono}
+                  onChange={handleChange}
+                  placeholder="+51 999 888 777"
                   className={inputWithIconClass}
                 />
               </div>
@@ -169,34 +274,40 @@ function AdminCreateUser() {
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
                 />
                 <select
-                  name="role"
-                  value={form.role}
+                  name="rolId"
+                  value={form.rolId}
                   onChange={handleChange}
                   className={inputWithIconClass}
+                  disabled={loadingRoles}
                 >
-                  <option value="ADMINISTRADOR">Administrador</option>
-                  <option value="RECURSOS_HUMANOS">Recursos Humanos</option>
-                  <option value="LIDER_TECNICO">Líder Técnico</option>
+                  {loadingRoles ? (
+                    <option value="">Cargando roles...</option>
+                  ) : (
+                    roles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.nombre}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Estado inicial
-              </label>
-              <div className="relative">
-                <CheckCircle2
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
-                />
-                <input
-                  value="Activo"
-                  disabled
-                  className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-slate-100 text-slate-500"
-                />
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="estado"
+                checked={form.estado}
+                onChange={handleChange}
+                className="accent-emerald-500"
+              />
+              <div>
+                <p className="font-black text-slate-900">Usuario activo</p>
+                <p className="text-sm text-slate-500">
+                  Permitirá usar el sistema.
+                </p>
               </div>
-            </div>
+            </label>
 
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
@@ -212,7 +323,7 @@ function AdminCreateUser() {
                   name="password"
                   value={form.password}
                   onChange={handleChange}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres"
                   className={inputWithIconClass}
                 />
               </div>
@@ -244,24 +355,35 @@ function AdminCreateUser() {
               <Sparkles size={22} className="text-emerald-600 shrink-0 mt-1" />
               <div>
                 <h3 className="font-black text-slate-900">
-                  Contraseña temporal
+                  Datos reales desde MySQL
                 </h3>
                 <p className="text-sm text-slate-600 mt-1">
-                  En esta versión frontend se simulan las credenciales. En la
-                  implementación real, Spring Boot cifrará la contraseña con
-                  BCrypt antes de guardarla en MySQL.
+                  Esta pantalla crea usuarios mediante Spring Boot y registra la
+                  acción en logs del sistema.
                 </p>
               </div>
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="mt-7 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white px-6 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20"
-          >
-            <Save size={18} />
-            Crear usuario
-          </button>
+          <div className="mt-7 flex flex-col md:flex-row gap-3">
+            <button
+              type="submit"
+              disabled={saving || loadingRoles}
+              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 disabled:from-slate-300 disabled:to-slate-300 text-white px-6 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20 disabled:shadow-none"
+            >
+              <Save size={18} />
+              {saving ? "Creando..." : "Crear usuario"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/admin/usuarios")}
+              className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-2xl font-black"
+            >
+              <X size={18} />
+              Cancelar
+            </button>
+          </div>
         </form>
 
         <aside className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] p-7 shadow-sm h-fit">
@@ -270,28 +392,32 @@ function AdminCreateUser() {
           </h2>
 
           <p className="text-slate-500 mt-2 text-sm">
-            Cada usuario interno tendrá acceso a módulos específicos según su rol.
+            Cada usuario tendrá acceso a módulos específicos según el rol asignado.
           </p>
 
           <div className="mt-6 space-y-4">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-black text-slate-900">Administrador</p>
-              <p className="text-sm text-slate-500 mt-1">
-                Gestiona usuarios, áreas, reportes y configuración.
-              </p>
-            </div>
+            {roles.map((role) => (
+              <div
+                key={role.id}
+                className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
+              >
+                <p className="font-black text-slate-900">{role.nombre}</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  {role.descripcion}
+                </p>
+              </div>
+            ))}
+          </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-black text-slate-900">Recursos Humanos</p>
-              <p className="text-sm text-slate-500 mt-1">
-                Crea vacantes, revisa CVs y filtra postulantes.
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-black text-slate-900">Líder Técnico</p>
-              <p className="text-sm text-slate-500 mt-1">
-                Crea evaluaciones y revisa resultados técnicos.
+          <div className="mt-6 rounded-3xl bg-emerald-50 border border-emerald-100 p-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2
+                size={22}
+                className="text-emerald-600 shrink-0 mt-1"
+              />
+              <p className="text-sm text-slate-600">
+                En una siguiente etapa, estas credenciales se protegerán con
+                JWT y contraseñas cifradas con BCrypt.
               </p>
             </div>
           </div>
