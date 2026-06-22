@@ -1,27 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
+  ArrowLeft,
   BookOpenCheck,
   Briefcase,
-  CheckCircle2,
   Clock,
-  FileQuestion,
   Plus,
   Save,
-  Sparkles,
   Trash2,
-  UserRound,
   X,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { evaluacionService } from "../../services/evaluacionService.js";
-import { userService } from "../../services/userService.js";
 import { vacanteService } from "../../services/vacanteService.js";
 
 const initialForm = {
   vacanteId: "",
-  tecnicoId: "",
   titulo: "",
   descripcion: "",
   duracionMinutos: 40,
@@ -32,7 +28,6 @@ const initialQuestion = {
   tipoPregunta: "MULTIPLE",
   enunciado: "",
   puntaje: 20,
-  orden: 1,
   opciones: [
     { texto: "", esCorrecta: true },
     { texto: "", esCorrecta: false },
@@ -43,14 +38,13 @@ const closedQuestionTypes = ["MULTIPLE", "VERDADERO_FALSO"];
 
 function TechnicalCreateEvaluation() {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
   const [form, setForm] = useState(initialForm);
   const [questions, setQuestions] = useState([initialQuestion]);
-
   const [vacantes, setVacantes] = useState([]);
-  const [tecnicos, setTecnicos] = useState([]);
 
-  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [message, setMessage] = useState("");
@@ -62,60 +56,36 @@ function TechnicalCreateEvaluation() {
     }, 0);
   }, [questions]);
 
+  const loadVacantes = async () => {
+    try {
+      setLoading(true);
+
+      const data = await vacanteService.getAll();
+
+      const availableVacantes = data.filter(
+        (vacante) =>
+          vacante.estado !== "CERRADA" && vacante.estado !== "CANCELADA"
+      );
+
+      setVacantes(availableVacantes);
+
+      setForm((prev) => ({
+        ...prev,
+        vacanteId: availableVacantes[0]?.id || "",
+      }));
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudieron cargar las vacantes.",
+        "error"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    loadCatalogs();
+    loadVacantes();
   }, []);
-
-  const loadCatalogs = async () => {
-  try {
-    setLoadingCatalogs(true);
-
-    const [vacantesData, usersData] = await Promise.all([
-      vacanteService.getAll(),
-      userService.getAll(),
-    ]);
-
-    const availableVacantes = vacantesData.filter(
-      (vacante) =>
-        vacante.estado !== "CERRADA" && vacante.estado !== "CANCELADA"
-    );
-
-    const technicalUsers = usersData.filter(
-      (user) => user.estado && user.rolNombre === "LIDER_TECNICO"
-    );
-
-    setVacantes(availableVacantes);
-    setTecnicos(technicalUsers);
-
-    setForm((prevForm) => ({
-      ...prevForm,
-      vacanteId: availableVacantes[0]?.id || "",
-      tecnicoId: technicalUsers[0]?.id || "",
-    }));
-
-    if (availableVacantes.length === 0) {
-      showMessage(
-        "No hay vacantes disponibles para crear evaluaciones.",
-        "error"
-      );
-    }
-
-    if (technicalUsers.length === 0) {
-      showMessage(
-        "No hay usuarios activos con rol de líder técnico.",
-        "error"
-      );
-    }
-  } catch (error) {
-    console.error("Error cargando catálogos:", error);
-    showMessage(
-      error.userMessage || "No se pudieron cargar los catálogos.",
-      "error"
-    );
-  } finally {
-    setLoadingCatalogs(false);
-  }
-};
 
   const showMessage = (text, type = "info") => {
     setMessage(text);
@@ -129,8 +99,8 @@ function TechnicalCreateEvaluation() {
   const handleFormChange = (e) => {
     const { name, value } = e.target;
 
-    setForm((prevForm) => ({
-      ...prevForm,
+    setForm((prev) => ({
+      ...prev,
       [name]: value,
     }));
   };
@@ -168,7 +138,10 @@ function TechnicalCreateEvaluation() {
 
         return {
           ...question,
-          [field]: field === "puntaje" || field === "orden" ? Number(value) : value,
+          [field]:
+            field === "puntaje"
+              ? Number(value)
+              : value,
         };
       })
     );
@@ -179,18 +152,23 @@ function TechnicalCreateEvaluation() {
       prevQuestions.map((question, currentQuestionIndex) => {
         if (currentQuestionIndex !== questionIndex) return question;
 
-        const updatedOptions = question.opciones.map((option, currentOptionIndex) => {
-          if (currentOptionIndex !== optionIndex) {
-            return field === "esCorrecta"
-              ? { ...option, esCorrecta: false }
-              : option;
-          }
+        const updatedOptions = question.opciones.map(
+          (option, currentOptionIndex) => {
+            if (field === "esCorrecta") {
+              return {
+                ...option,
+                esCorrecta: currentOptionIndex === optionIndex,
+              };
+            }
 
-          return {
-            ...option,
-            [field]: field === "esCorrecta" ? true : value,
-          };
-        });
+            if (currentOptionIndex !== optionIndex) return option;
+
+            return {
+              ...option,
+              texto: value,
+            };
+          }
+        );
 
         return {
           ...question,
@@ -205,7 +183,7 @@ function TechnicalCreateEvaluation() {
       ...prevQuestions,
       {
         ...initialQuestion,
-        orden: prevQuestions.length + 1,
+        opciones: initialQuestion.opciones.map((option) => ({ ...option })),
       },
     ]);
   };
@@ -217,12 +195,7 @@ function TechnicalCreateEvaluation() {
     }
 
     setQuestions((prevQuestions) =>
-      prevQuestions
-        .filter((_, questionIndex) => questionIndex !== index)
-        .map((question, questionIndex) => ({
-          ...question,
-          orden: questionIndex + 1,
-        }))
+      prevQuestions.filter((_, questionIndex) => questionIndex !== index)
     );
   };
 
@@ -245,7 +218,10 @@ function TechnicalCreateEvaluation() {
         if (currentQuestionIndex !== questionIndex) return question;
 
         if (question.opciones.length <= 2) {
-          showMessage("Una pregunta cerrada debe tener al menos dos opciones.", "error");
+          showMessage(
+            "Una pregunta cerrada debe tener al menos dos opciones.",
+            "error"
+          );
           return question;
         }
 
@@ -266,38 +242,52 @@ function TechnicalCreateEvaluation() {
   };
 
   const validateForm = () => {
-    if (!form.vacanteId) return "Selecciona una vacante.";
-    if (!form.tecnicoId) return "Selecciona un líder técnico.";
-
-    if (!form.titulo.trim()) return "Ingresa el título de la evaluación.";
-    if (form.titulo.trim().length < 5)
-      return "El título debe tener al menos 5 caracteres.";
-
-    if (!form.duracionMinutos || Number(form.duracionMinutos) <= 0)
-      return "La duración debe ser mayor a cero.";
-
-    if (!form.puntajeMaximo || Number(form.puntajeMaximo) <= 0)
-      return "El puntaje máximo debe ser mayor a cero.";
-
-    if (questions.length === 0)
-      return "La evaluación debe tener al menos una pregunta.";
-
-    if (totalPoints > Number(form.puntajeMaximo)) {
-      return "La suma de puntajes no puede superar el puntaje máximo.";
+    if (!currentUser?.id) {
+      return "No se encontró el usuario técnico autenticado.";
     }
 
-    for (const question of questions) {
+    if (!form.vacanteId) {
+      return "Selecciona una vacante.";
+    }
+
+    if (!form.titulo.trim()) {
+      return "Ingresa el título de la evaluación.";
+    }
+
+    if (form.titulo.trim().length < 5) {
+      return "El título debe tener al menos 5 caracteres.";
+    }
+
+    if (!form.duracionMinutos || Number(form.duracionMinutos) <= 0) {
+      return "La duración debe ser mayor a cero.";
+    }
+
+    if (!form.puntajeMaximo || Number(form.puntajeMaximo) <= 0) {
+      return "El puntaje máximo debe ser mayor a cero.";
+    }
+
+    if (questions.length === 0) {
+      return "La evaluación debe tener al menos una pregunta.";
+    }
+
+    if (totalPoints > Number(form.puntajeMaximo)) {
+      return "La suma de puntos no puede superar el puntaje máximo.";
+    }
+
+    for (let index = 0; index < questions.length; index++) {
+      const question = questions[index];
+
       if (!question.enunciado.trim()) {
-        return "Todas las preguntas deben tener enunciado.";
+        return `La pregunta ${index + 1} debe tener enunciado.`;
       }
 
       if (!question.puntaje || Number(question.puntaje) <= 0) {
-        return "Todas las preguntas deben tener puntaje mayor a cero.";
+        return `La pregunta ${index + 1} debe tener puntaje mayor a cero.`;
       }
 
       if (closedQuestionTypes.includes(question.tipoPregunta)) {
         if (!question.opciones || question.opciones.length < 2) {
-          return "Las preguntas cerradas deben tener al menos dos opciones.";
+          return `La pregunta ${index + 1} debe tener al menos dos opciones.`;
         }
 
         const emptyOption = question.opciones.some(
@@ -305,7 +295,7 @@ function TechnicalCreateEvaluation() {
         );
 
         if (emptyOption) {
-          return "Todas las opciones deben tener texto.";
+          return `Todas las opciones de la pregunta ${index + 1} deben tener texto.`;
         }
 
         const correctOptions = question.opciones.filter(
@@ -313,7 +303,7 @@ function TechnicalCreateEvaluation() {
         );
 
         if (correctOptions.length !== 1) {
-          return "Cada pregunta cerrada debe tener exactamente una respuesta correcta.";
+          return `La pregunta ${index + 1} debe tener una sola respuesta correcta.`;
         }
       }
     }
@@ -333,7 +323,7 @@ function TechnicalCreateEvaluation() {
 
     const payload = {
       vacanteId: Number(form.vacanteId),
-      tecnicoId: Number(form.tecnicoId),
+      tecnicoId: Number(currentUser.id),
       titulo: form.titulo.trim(),
       descripcion: form.descripcion.trim() || null,
       duracionMinutos: Number(form.duracionMinutos),
@@ -372,6 +362,17 @@ function TechnicalCreateEvaluation() {
     }
   };
 
+  const questionTypeLabel = (type) => {
+    const labels = {
+      MULTIPLE: "Opción múltiple",
+      VERDADERO_FALSO: "Verdadero/Falso",
+      TEXTO: "Texto",
+      CODIGO: "Código",
+    };
+
+    return labels[type] || type;
+  };
+
   const alertStyles = {
     info: "bg-sky-50 border-sky-200 text-sky-700",
     success: "bg-emerald-50 border-emerald-200 text-emerald-700",
@@ -381,421 +382,370 @@ function TechnicalCreateEvaluation() {
   return (
     <div>
       <SectionHeader
-        title="Crear evaluación técnica"
-        description="Crea una evaluación ligada a una vacante y define sus preguntas."
+        title="Crear evaluación"
+        description="Registra una evaluación técnica para una vacante específica."
       />
 
       {message && (
         <div
-          className={`mb-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+          className={`mb-5 border rounded-2xl px-4 py-3 text-sm font-semibold ${alertStyles[messageType]}`}
         >
           {message}
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6"
+      <Link
+        to="/technical/evaluaciones"
+        className="inline-flex items-center gap-2 text-emerald-700 font-black mb-5"
       >
-        <section className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-            <div className="flex items-center gap-3 mb-7">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center">
-                <BookOpenCheck size={24} />
+        <ArrowLeft size={18} />
+        Volver a evaluaciones
+      </Link>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <section className="bg-white border border-slate-200 rounded-2xl p-5">
+          <h2 className="text-xl font-black text-slate-900">
+            Datos principales
+          </h2>
+
+          <p className="text-sm text-slate-500 mt-1">
+            La evaluación quedará asociada a la vacante seleccionada.
+          </p>
+
+          {loading ? (
+            <div className="mt-5 border border-slate-200 rounded-xl p-5 text-center text-slate-500">
+              Cargando vacantes...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Vacante *
+                </label>
+
+                <div className="relative">
+                  <Briefcase
+                    size={17}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
+                  />
+
+                  <select
+                    name="vacanteId"
+                    value={form.vacanteId}
+                    onChange={handleFormChange}
+                    className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  >
+                    {vacantes.length === 0 && (
+                      <option value="">No hay vacantes disponibles</option>
+                    )}
+
+                    {vacantes.map((vacante) => (
+                      <option key={vacante.id} value={vacante.id}>
+                        {vacante.titulo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
-                <h2 className="text-2xl font-black text-slate-900">
-                  Datos principales
-                </h2>
-                <p className="text-sm text-slate-500">
-                  La evaluación quedará asociada a una vacante específica.
-                </p>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Técnico responsable
+                </label>
+
+                <input
+                  value={currentUser?.nombreCompleto || "Usuario técnico"}
+                  disabled
+                  className="w-full border border-slate-300 rounded-xl px-4 py-3 bg-slate-50 text-slate-600"
+                />
               </div>
-            </div>
 
-            {loadingCatalogs ? (
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-8 text-center">
-                <h3 className="text-xl font-black text-slate-900">
-                  Cargando catálogos...
-                </h3>
-                <p className="text-slate-500 mt-2">
-                  Consultando vacantes y líderes técnicos desde MySQL.
-                </p>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Título *
+                </label>
+
+                <input
+                  name="titulo"
+                  value={form.titulo}
+                  onChange={handleFormChange}
+                  placeholder="Ej: Evaluación Backend Spring Boot"
+                  className="input-light"
+                />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Vacante *
-                  </label>
-                  <div className="relative">
-                    <Briefcase
-                      size={18}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
-                    />
-                    <select
-                      name="vacanteId"
-                      value={form.vacanteId}
-                      onChange={handleFormChange}
-                      className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                    >
-                      {vacantes.map((vacante) => (
-                        <option key={vacante.id} value={vacante.id}>
-                          {vacante.titulo}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Líder técnico *
-                  </label>
-                  <div className="relative">
-                    <UserRound
-                      size={18}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
-                    />
-                    <select
-                      name="tecnicoId"
-                      value={form.tecnicoId}
-                      onChange={handleFormChange}
-                      className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                    >
-                      {tecnicos.map((tecnico) => (
-                        <option key={tecnico.id} value={tecnico.id}>
-                          {tecnico.nombreCompleto}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Descripción
+                </label>
 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Título *
-                  </label>
-                  <input
-                    name="titulo"
-                    value={form.titulo}
-                    onChange={handleFormChange}
-                    placeholder="Ej: Evaluación Backend Spring Boot"
-                    className="input-light"
+                <textarea
+                  name="descripcion"
+                  value={form.descripcion}
+                  onChange={handleFormChange}
+                  placeholder="Describe brevemente el objetivo de la evaluación."
+                  className="w-full min-h-24 border border-slate-300 rounded-xl p-3 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Duración en minutos *
+                </label>
+
+                <div className="relative">
+                  <Clock
+                    size={17}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
                   />
-                </div>
 
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Descripción
-                  </label>
-                  <textarea
-                    name="descripcion"
-                    value={form.descripcion}
-                    onChange={handleFormChange}
-                    placeholder="Describe el objetivo de la evaluación..."
-                    className="w-full min-h-28 border border-slate-300 rounded-xl p-4 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Duración *
-                  </label>
-                  <div className="relative">
-                    <Clock
-                      size={18}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
-                    />
-                    <input
-                      type="number"
-                      name="duracionMinutos"
-                      value={form.duracionMinutos}
-                      onChange={handleFormChange}
-                      className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Puntaje máximo *
-                  </label>
                   <input
                     type="number"
-                    name="puntajeMaximo"
-                    value={form.puntajeMaximo}
+                    name="duracionMinutos"
+                    min="1"
+                    value={form.duracionMinutos}
                     onChange={handleFormChange}
-                    className="input-light"
+                    className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                   />
                 </div>
               </div>
-            )}
-          </div>
 
-          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-7">
               <div>
-                <h2 className="text-2xl font-black text-slate-900">
-                  Preguntas
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Puedes combinar preguntas de opción múltiple, texto y código.
-                </p>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Puntaje máximo *
+                </label>
+
+                <input
+                  type="number"
+                  name="puntajeMaximo"
+                  min="1"
+                  value={form.puntajeMaximo}
+                  onChange={handleFormChange}
+                  className="input-light"
+                />
               </div>
-
-              <button
-                type="button"
-                onClick={addQuestion}
-                className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-2xl font-black"
-              >
-                <Plus size={17} />
-                Agregar pregunta
-              </button>
             </div>
-
-            <div className="space-y-5">
-              {questions.map((question, questionIndex) => (
-                <div
-                  key={questionIndex}
-                  className="rounded-[1.5rem] bg-slate-50 border border-slate-200 p-5"
-                >
-                  <div className="flex items-start justify-between gap-4 mb-5">
-                    <div>
-                      <h3 className="text-xl font-black text-slate-900">
-                        Pregunta {questionIndex + 1}
-                      </h3>
-                      <p className="text-sm text-slate-500">
-                        Orden #{questionIndex + 1}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => removeQuestion(questionIndex)}
-                      className="inline-flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-2 rounded-xl font-black"
-                    >
-                      <Trash2 size={17} />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-[200px_140px_1fr] gap-4">
-                    <div>
-                      <label className="block text-xs font-black text-slate-500 mb-2">
-                        Tipo
-                      </label>
-                      <select
-                        value={question.tipoPregunta}
-                        onChange={(e) =>
-                          handleQuestionChange(
-                            questionIndex,
-                            "tipoPregunta",
-                            e.target.value
-                          )
-                        }
-                        className="input-light"
-                      >
-                        <option value="MULTIPLE">Opción múltiple</option>
-                        <option value="VERDADERO_FALSO">Verdadero/Falso</option>
-                        <option value="TEXTO">Texto</option>
-                        <option value="CODIGO">Código</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-black text-slate-500 mb-2">
-                        Puntaje
-                      </label>
-                      <input
-                        type="number"
-                        value={question.puntaje}
-                        onChange={(e) =>
-                          handleQuestionChange(
-                            questionIndex,
-                            "puntaje",
-                            e.target.value
-                          )
-                        }
-                        className="input-light"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-black text-slate-500 mb-2">
-                        Enunciado
-                      </label>
-                      <input
-                        value={question.enunciado}
-                        onChange={(e) =>
-                          handleQuestionChange(
-                            questionIndex,
-                            "enunciado",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Escribe la pregunta..."
-                        className="input-light"
-                      />
-                    </div>
-                  </div>
-
-                  {closedQuestionTypes.includes(question.tipoPregunta) && (
-                    <div className="mt-5">
-                      <div className="flex items-center justify-between gap-3 mb-3">
-                        <h4 className="font-black text-slate-900">Opciones</h4>
-
-                        {question.tipoPregunta === "MULTIPLE" && (
-                          <button
-                            type="button"
-                            onClick={() => addOption(questionIndex)}
-                            className="inline-flex items-center gap-2 text-emerald-700 font-black text-sm"
-                          >
-                            <Plus size={16} />
-                            Agregar opción
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="space-y-3">
-                        {question.opciones.map((option, optionIndex) => (
-                          <div
-                            key={optionIndex}
-                            className="grid grid-cols-1 md:grid-cols-[1fr_120px_auto] gap-3 items-center"
-                          >
-                            <input
-                              value={option.texto}
-                              onChange={(e) =>
-                                handleOptionChange(
-                                  questionIndex,
-                                  optionIndex,
-                                  "texto",
-                                  e.target.value
-                                )
-                              }
-                              disabled={question.tipoPregunta === "VERDADERO_FALSO"}
-                              placeholder={`Opción ${optionIndex + 1}`}
-                              className="input-light"
-                            />
-
-                            <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                              <input
-                                type="radio"
-                                checked={option.esCorrecta}
-                                onChange={() =>
-                                  handleOptionChange(
-                                    questionIndex,
-                                    optionIndex,
-                                    "esCorrecta",
-                                    true
-                                  )
-                                }
-                                className="accent-emerald-500"
-                              />
-                              Correcta
-                            </label>
-
-                            {question.tipoPregunta === "MULTIPLE" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  removeOption(questionIndex, optionIndex)
-                                }
-                                className="inline-flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-2 rounded-xl"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
         </section>
 
-        <aside className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm h-fit">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center mb-5">
-              <FileQuestion size={26} />
-            </div>
+        <section className="bg-white border border-slate-200 rounded-2xl p-5">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+            <div>
+              <h2 className="text-xl font-black text-slate-900">
+                Preguntas
+              </h2>
 
-            <h2 className="text-2xl font-black text-slate-900">
-              Resumen
-            </h2>
-
-            <div className="mt-6 space-y-4">
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4">
-                <p className="text-xs font-black text-slate-500">Preguntas</p>
-                <p className="text-3xl font-black text-slate-900">
-                  {questions.length}
-                </p>
-              </div>
-
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4">
-                <p className="text-xs font-black text-slate-500">
-                  Puntaje usado
-                </p>
-                <p
-                  className={`text-3xl font-black ${
+              <p className="text-sm text-slate-500 mt-1">
+                Puntaje usado:{" "}
+                <strong
+                  className={
                     totalPoints > Number(form.puntajeMaximo)
                       ? "text-rose-600"
                       : "text-emerald-600"
-                  }`}
+                  }
                 >
                   {totalPoints}/{form.puntajeMaximo || 0}
-                </p>
-              </div>
+                </strong>
+              </p>
             </div>
 
-            <div className="mt-6 rounded-3xl bg-gradient-to-br from-emerald-50 to-sky-50 border border-emerald-100 p-5">
-              <div className="flex items-start gap-3">
-                <Sparkles size={22} className="text-emerald-600 shrink-0 mt-1" />
-                <p className="text-sm text-slate-600">
-                  La evaluación se guardará en MySQL y luego podrá asignarse a
-                  postulaciones aprobadas por RRHH.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-7 flex flex-col gap-3">
-              <button
-                type="submit"
-                disabled={saving || loadingCatalogs}
-                className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 disabled:from-slate-300 disabled:to-slate-300 text-white px-6 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20 disabled:shadow-none"
-              >
-                <Save size={18} />
-                {saving ? "Guardando..." : "Crear evaluación"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate("/technical/evaluaciones")}
-                className="w-full inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-6 py-3 rounded-2xl font-black"
-              >
-                <X size={18} />
-                Cancelar
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={addQuestion}
+              className="inline-flex items-center justify-center gap-2 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-xl text-sm font-black"
+            >
+              <Plus size={17} />
+              Agregar pregunta
+            </button>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-            <h3 className="font-black text-slate-900 flex items-center gap-2">
-              <CheckCircle2 size={20} className="text-emerald-600" />
-              Validaciones aplicadas
-            </h3>
+          <div className="space-y-4">
+            {questions.map((question, questionIndex) => (
+              <div
+                key={questionIndex}
+                className="border border-slate-200 rounded-xl p-4"
+              >
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+                  <div>
+                    <h3 className="font-black text-slate-900">
+                      Pregunta {questionIndex + 1}
+                    </h3>
 
-            <ul className="mt-4 space-y-2 text-sm text-slate-600">
-              <li>• La evaluación debe tener al menos una pregunta.</li>
-              <li>• La suma de puntos no debe superar el puntaje máximo.</li>
-              <li>• Cada pregunta cerrada debe tener una respuesta correcta.</li>
-              <li>• Texto y código no deben tener opciones.</li>
-            </ul>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {questionTypeLabel(question.tipoPregunta)}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => removeQuestion(questionIndex)}
+                    className="inline-flex items-center justify-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-sm font-bold"
+                  >
+                    <Trash2 size={15} />
+                    Quitar
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[200px_140px_1fr] gap-3">
+                  <div>
+                    <label className="block text-xs font-black text-slate-500 mb-2">
+                      Tipo
+                    </label>
+
+                    <select
+                      value={question.tipoPregunta}
+                      onChange={(e) =>
+                        handleQuestionChange(
+                          questionIndex,
+                          "tipoPregunta",
+                          e.target.value
+                        )
+                      }
+                      className="input-light"
+                    >
+                      <option value="MULTIPLE">Opción múltiple</option>
+                      <option value="VERDADERO_FALSO">Verdadero/Falso</option>
+                      <option value="TEXTO">Texto</option>
+                      <option value="CODIGO">Código</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-500 mb-2">
+                      Puntaje
+                    </label>
+
+                    <input
+                      type="number"
+                      min="1"
+                      value={question.puntaje}
+                      onChange={(e) =>
+                        handleQuestionChange(
+                          questionIndex,
+                          "puntaje",
+                          e.target.value
+                        )
+                      }
+                      className="input-light"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-500 mb-2">
+                      Enunciado
+                    </label>
+
+                    <input
+                      value={question.enunciado}
+                      onChange={(e) =>
+                        handleQuestionChange(
+                          questionIndex,
+                          "enunciado",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Escribe la pregunta..."
+                      className="input-light"
+                    />
+                  </div>
+                </div>
+
+                {closedQuestionTypes.includes(question.tipoPregunta) && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <p className="text-sm font-black text-slate-700">
+                        Opciones
+                      </p>
+
+                      {question.tipoPregunta === "MULTIPLE" && (
+                        <button
+                          type="button"
+                          onClick={() => addOption(questionIndex)}
+                          className="text-sm font-black text-emerald-700 hover:text-emerald-800"
+                        >
+                          + Agregar opción
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      {question.opciones.map((option, optionIndex) => (
+                        <div
+                          key={optionIndex}
+                          className="grid grid-cols-1 md:grid-cols-[1fr_120px_auto] gap-2 items-center"
+                        >
+                          <input
+                            value={option.texto}
+                            onChange={(e) =>
+                              handleOptionChange(
+                                questionIndex,
+                                optionIndex,
+                                "texto",
+                                e.target.value
+                              )
+                            }
+                            disabled={
+                              question.tipoPregunta === "VERDADERO_FALSO"
+                            }
+                            placeholder={`Opción ${optionIndex + 1}`}
+                            className="input-light"
+                          />
+
+                          <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                            <input
+                              type="radio"
+                              checked={option.esCorrecta}
+                              onChange={() =>
+                                handleOptionChange(
+                                  questionIndex,
+                                  optionIndex,
+                                  "esCorrecta",
+                                  true
+                                )
+                              }
+                              className="accent-emerald-600"
+                            />
+                            Correcta
+                          </label>
+
+                          {question.tipoPregunta === "MULTIPLE" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeOption(questionIndex, optionIndex)
+                              }
+                              className="inline-flex items-center justify-center border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-sm font-bold"
+                            >
+                              <X size={15} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        </aside>
+        </section>
+
+        <section className="flex flex-col md:flex-row justify-end gap-3">
+          <Link
+            to="/technical/evaluaciones"
+            className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-xl text-sm font-black"
+          >
+            Cancelar
+          </Link>
+
+          <button
+            type="submit"
+            disabled={saving || loading}
+            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-5 py-3 rounded-xl text-sm font-black"
+          >
+            <Save size={17} />
+            {saving ? "Guardando..." : "Crear evaluación"}
+          </button>
+        </section>
       </form>
     </div>
   );
