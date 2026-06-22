@@ -105,6 +105,11 @@ const menuByRole = {
       icon: Home,
     },
     {
+      label: "Procesos técnicos",
+      path: "/technical/vacantes",
+      icon: Briefcase,
+    },
+    {
       label: "Evaluaciones",
       path: "/technical/evaluaciones",
       icon: BookOpenCheck,
@@ -113,11 +118,6 @@ const menuByRole = {
       label: "Crear evaluación",
       path: "/technical/evaluaciones/create",
       icon: Layers,
-    },
-    {
-      label: "Postulantes",
-      path: "/technical/postulantes",
-      icon: Users,
     },
     {
       label: "Resultados",

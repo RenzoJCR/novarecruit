@@ -30,9 +30,10 @@ import RrhhCandidates from "../pages/rrhh/RrhhCandidates.jsx";
 import RrhhInterviews from "../pages/rrhh/RrhhInterviews.jsx";
 
 import TechnicalDashboard from "../pages/technical/TechnicalDashboard.jsx";
+import TechnicalJobs from "../pages/technical/TechnicalJobs.jsx";
+import TechnicalJobDetail from "../pages/technical/TechnicalJobDetail.jsx";
 import TechnicalEvaluations from "../pages/technical/TechnicalEvaluations.jsx";
 import TechnicalCreateEvaluation from "../pages/technical/TechnicalCreateEvaluation.jsx";
-import TechnicalApplicants from "../pages/technical/TechnicalApplicants.jsx";
 import TechnicalResults from "../pages/technical/TechnicalResults.jsx";
 
 import AdminDashboard from "../pages/admin/AdminDashboard.jsx";
@@ -45,7 +46,6 @@ import AdminSettings from "../pages/admin/AdminSettings.jsx";
 function AppRoutes() {
   return (
     <Routes>
-      {/* Rutas públicas con barra de navegación */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/vacantes" element={<PublicJobs />} />
@@ -65,7 +65,6 @@ function AppRoutes() {
         />
       </Route>
 
-      {/* Rutas del postulante */}
       <Route
         element={
           <ProtectedRoute allowedRoles={["POSTULANTE"]}>
@@ -102,7 +101,6 @@ function AppRoutes() {
         <Route path="/applicant/perfil" element={<ApplicantProfile />} />
       </Route>
 
-      {/* Rutas de RRHH */}
       <Route
         element={
           <ProtectedRoute allowedRoles={["RECURSOS_HUMANOS"]}>
@@ -122,7 +120,6 @@ function AppRoutes() {
         <Route path="/rrhh/entrevistas" element={<RrhhInterviews />} />
       </Route>
 
-      {/* Rutas de líder técnico */}
       <Route
         element={
           <ProtectedRoute allowedRoles={["LIDER_TECNICO"]}>
@@ -132,9 +129,11 @@ function AppRoutes() {
       >
         <Route
           path="/technical"
-          element={<Navigate to="/technical/dashboard" replace />}
+          element={<Navigate to="/technical/vacantes" replace />}
         />
         <Route path="/technical/dashboard" element={<TechnicalDashboard />} />
+        <Route path="/technical/vacantes" element={<TechnicalJobs />} />
+        <Route path="/technical/vacantes/:id" element={<TechnicalJobDetail />} />
         <Route
           path="/technical/evaluaciones"
           element={<TechnicalEvaluations />}
@@ -145,12 +144,11 @@ function AppRoutes() {
         />
         <Route
           path="/technical/postulantes"
-          element={<TechnicalApplicants />}
+          element={<Navigate to="/technical/vacantes" replace />}
         />
         <Route path="/technical/resultados" element={<TechnicalResults />} />
       </Route>
 
-      {/* Rutas de administrador */}
       <Route
         element={
           <ProtectedRoute allowedRoles={["ADMINISTRADOR"]}>
