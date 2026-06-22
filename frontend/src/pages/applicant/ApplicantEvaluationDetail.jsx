@@ -5,19 +5,96 @@ import {
   BookOpenCheck,
   CheckCircle2,
   Clock,
-  FileQuestion,
+  Save,
   Send,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
-import { evaluacionService } from "../../services/evaluacionService.js";
 import { evaluacionPostulacionService } from "../../services/evaluacionPostulacionService.js";
+import { evaluacionService } from "../../services/evaluacionService.js";
+
+function getEstadoVisible(estado) {
+  const labels = {
+    ASIGNADA: "Pendiente",
+    EN_PROCESO: "En proceso",
+    COMPLETADA: "Enviada",
+    REVISADA: "Revisada",
+  };
+
+  return labels[estado] || estado || "Sin estado";
+}
+
+function statusClass(estado) {
+  const styles = {
+    ASIGNADA: "bg-sky-50 text-sky-700 border-sky-200",
+    EN_PROCESO: "bg-amber-50 text-amber-700 border-amber-200",
+    COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
+    REVISADA: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  };
+
+  return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
+}
+
+function formatDateTime(value) {
+  if (!value) return "Sin fecha";
+
+  return new Date(value).toLocaleString("es-PE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function canAnswer(status) {
+  return status === "ASIGNADA" || status === "EN_PROCESO";
+}
+
+function getQuestionsFromPayload(data) {
+  return (
+    data?.preguntas ||
+    data?.evaluacion?.preguntas ||
+    data?.evaluacionPreguntas ||
+    data?.preguntasEvaluacion ||
+    []
+  );
+}
+
+function getOptionsFromQuestion(question) {
+  return (
+    question?.opciones ||
+    question?.opcionesPregunta ||
+    question?.alternativas ||
+    []
+  );
+}
+
+function getQuestionId(question) {
+  return question.id || question.preguntaId || question.preguntaEvaluacionId;
+}
+
+function getQuestionText(question) {
+  return question.enunciado || question.preguntaEnunciado || question.texto || "";
+}
+
+function getQuestionType(question) {
+  return question.tipoPregunta || question.tipo || "TEXTO";
+}
+
+function getQuestionScore(question) {
+  return question.puntaje || question.puntajeMaximo || 0;
+}
+
+function getOptionId(option) {
+  return option.id || option.opcionId;
+}
+
+function getOptionText(option) {
+  return option.texto || option.opcionTexto || option.descripcion || "";
+}
 
 function ApplicantEvaluationDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [assignedEvaluation, setAssignedEvaluation] = useState(null);
   const [evaluation, setEvaluation] = useState(null);
   const [answers, setAnswers] = useState({});
 
@@ -27,38 +104,89 @@ function ApplicantEvaluationDetail() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
-  const questions = useMemo(() => evaluation?.preguntas || [], [evaluation]);
+  const questions = useMemo(() => getQuestionsFromPayload(evaluation), [evaluation]);
 
-  const canSubmit = useMemo(() => {
-    return (
-      assignedEvaluation?.estado === "ASIGNADA" ||
-      assignedEvaluation?.estado === "EN_PROCESO"
-    );
-  }, [assignedEvaluation]);
+  const answeredCount = useMemo(() => {
+    return questions.filter((question) => {
+      const questionId = getQuestionId(question);
+      const type = getQuestionType(question);
+      const value = answers[questionId];
 
-  const loadData = async () => {
+      if (type === "TEXTO" || type === "CODIGO") {
+        return Boolean(value?.respuestaTexto?.trim());
+      }
+
+      return Boolean(value?.opcionId);
+    }).length;
+  }, [questions, answers]);
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4500);
+  };
+
+  const buildInitialAnswers = (data, loadedQuestions) => {
+    const initialAnswers = {};
+    const previousAnswers = data.respuestas || [];
+
+    loadedQuestions.forEach((question) => {
+      const questionId = getQuestionId(question);
+      const type = getQuestionType(question);
+
+      const previousAnswer = previousAnswers.find((answer) => {
+        return (
+          Number(answer.preguntaId) === Number(questionId) ||
+          Number(answer.preguntaEvaluacionId) === Number(questionId)
+        );
+      });
+
+      if (type === "TEXTO" || type === "CODIGO") {
+        initialAnswers[questionId] = {
+          preguntaId: Number(questionId),
+          respuestaTexto: previousAnswer?.respuestaTexto || "",
+        };
+      } else {
+        initialAnswers[questionId] = {
+          preguntaId: Number(questionId),
+          opcionId: previousAnswer?.opcionId || "",
+        };
+      }
+    });
+
+    return initialAnswers;
+  };
+
+  const loadEvaluation = async () => {
     try {
       setLoading(true);
 
-      const assignedData = await evaluacionPostulacionService.getById(id);
-      setAssignedEvaluation(assignedData);
+      const data = await evaluacionPostulacionService.getById(id);
 
-      const evaluationData = await evaluacionService.getById(
-        assignedData.evaluacionId
-      );
-      setEvaluation(evaluationData);
+      let loadedQuestions = getQuestionsFromPayload(data);
+      let mergedData = data;
 
-      const initialAnswers = {};
+      if ((!loadedQuestions || loadedQuestions.length === 0) && data.evaluacionId) {
+        const evaluacionBase = await evaluacionService.getById(data.evaluacionId);
 
-      evaluationData.preguntas?.forEach((question) => {
-        initialAnswers[question.id] = {
-          preguntaId: question.id,
-          opcionId: "",
-          respuestaTexto: "",
+        loadedQuestions = getQuestionsFromPayload(evaluacionBase);
+
+        mergedData = {
+          ...data,
+          preguntas: loadedQuestions,
+          duracionMinutos:
+            data.duracionMinutos || evaluacionBase.duracionMinutos,
+          puntajeMaximo: data.puntajeMaximo || evaluacionBase.puntajeMaximo,
+          evaluacionTitulo:
+            data.evaluacionTitulo || evaluacionBase.titulo,
         };
-      });
+      }
 
-      setAnswers(initialAnswers);
+      setEvaluation(mergedData);
+      setAnswers(buildInitialAnswers(mergedData, loadedQuestions));
     } catch (error) {
       showMessage(
         error.userMessage || "No se pudo cargar la evaluación.",
@@ -70,26 +198,15 @@ function ApplicantEvaluationDetail() {
   };
 
   useEffect(() => {
-    loadData();
+    loadEvaluation();
   }, [id]);
-
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4500);
-  };
 
   const handleClosedAnswer = (questionId, optionId) => {
     setAnswers((prev) => ({
       ...prev,
       [questionId]: {
-        ...prev[questionId],
-        preguntaId: questionId,
+        preguntaId: Number(questionId),
         opcionId: Number(optionId),
-        respuestaTexto: null,
       },
     }));
   };
@@ -98,37 +215,35 @@ function ApplicantEvaluationDetail() {
     setAnswers((prev) => ({
       ...prev,
       [questionId]: {
-        ...prev[questionId],
-        preguntaId: questionId,
-        opcionId: null,
+        preguntaId: Number(questionId),
         respuestaTexto: value,
       },
     }));
   };
 
   const validateAnswers = () => {
-    if (!canSubmit) {
-      return "Esta evaluación ya no está disponible para ser enviada.";
+    if (!evaluation) return "No se encontró la evaluación.";
+
+    if (!canAnswer(evaluation.estado)) {
+      return "Esta evaluación ya fue enviada o revisada.";
     }
 
-    for (const question of questions) {
-      const answer = answers[question.id];
+    if (questions.length === 0) {
+      return "La evaluación no tiene preguntas registradas.";
+    }
 
-      if (!answer) {
-        return "Debes responder todas las preguntas.";
-      }
+    for (let index = 0; index < questions.length; index++) {
+      const question = questions[index];
+      const questionId = getQuestionId(question);
+      const type = getQuestionType(question);
+      const answer = answers[questionId];
 
-      if (
-        question.tipoPregunta === "MULTIPLE" ||
-        question.tipoPregunta === "VERDADERO_FALSO"
-      ) {
-        if (!answer.opcionId) {
-          return `Debes seleccionar una opción para la pregunta ${question.orden}.`;
+      if (type === "TEXTO" || type === "CODIGO") {
+        if (!answer?.respuestaTexto?.trim()) {
+          return `Responde la pregunta ${index + 1}.`;
         }
-      } else {
-        if (!answer.respuestaTexto || !answer.respuestaTexto.trim()) {
-          return `Debes ingresar una respuesta para la pregunta ${question.orden}.`;
-        }
+      } else if (!answer?.opcionId) {
+        return `Selecciona una opción en la pregunta ${index + 1}.`;
       }
     }
 
@@ -143,15 +258,30 @@ function ApplicantEvaluationDetail() {
       return;
     }
 
+    const confirmed = window.confirm(
+      "¿Enviar evaluación? Luego de enviarla no podrás modificar tus respuestas."
+    );
+
+    if (!confirmed) return;
+
     const payload = {
-      evaluacionPostulacionId: Number(id),
       respuestas: questions.map((question) => {
-        const answer = answers[question.id];
+        const questionId = getQuestionId(question);
+        const type = getQuestionType(question);
+        const answer = answers[questionId];
+
+        if (type === "TEXTO" || type === "CODIGO") {
+          return {
+            preguntaId: Number(questionId),
+            respuestaTexto: answer.respuestaTexto.trim(),
+            opcionId: null,
+          };
+        }
 
         return {
-          preguntaId: Number(question.id),
-          opcionId: answer.opcionId ? Number(answer.opcionId) : null,
-          respuestaTexto: answer.respuestaTexto || null,
+          preguntaId: Number(questionId),
+          opcionId: Number(answer.opcionId),
+          respuestaTexto: null,
         };
       }),
     };
@@ -159,7 +289,7 @@ function ApplicantEvaluationDetail() {
     try {
       setSending(true);
 
-      await evaluacionPostulacionService.submit(payload);
+      await evaluacionPostulacionService.submit(id, payload);
 
       showMessage("Evaluación enviada correctamente.", "success");
 
@@ -176,13 +306,15 @@ function ApplicantEvaluationDetail() {
     }
   };
 
-  const formatDateTime = (value) => {
-    if (!value) return "Sin fecha";
+  const questionTypeLabel = (type) => {
+    const labels = {
+      MULTIPLE: "Opción múltiple",
+      VERDADERO_FALSO: "Verdadero/Falso",
+      TEXTO: "Texto",
+      CODIGO: "Código",
+    };
 
-    return new Date(value).toLocaleString("es-PE", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
+    return labels[type] || type;
   };
 
   const alertStyles = {
@@ -191,48 +323,38 @@ function ApplicantEvaluationDetail() {
     error: "bg-rose-50 border-rose-200 text-rose-700",
   };
 
-  const statusClass = (status) => {
-    const styles = {
-      ASIGNADA: "bg-sky-50 text-sky-700 border-sky-200",
-      EN_PROCESO: "bg-amber-50 text-amber-700 border-amber-200",
-      COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
-      REVISADA: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    };
-
-    return styles[status] || "bg-slate-50 text-slate-600 border-slate-200";
-  };
-
   if (loading) {
     return (
       <div>
         <SectionHeader
-          title="Resolver evaluación"
-          description="Cargando evaluación asignada desde el backend."
+          title="Evaluación"
+          description="Cargando información de la evaluación."
         />
 
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center">
-          <h2 className="text-2xl font-black text-slate-900">
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <h2 className="text-xl font-black text-slate-900">
             Cargando evaluación...
           </h2>
+          <p className="text-slate-500 mt-1">Un momento por favor.</p>
         </div>
       </div>
     );
   }
 
-  if (!assignedEvaluation || !evaluation) {
+  if (!evaluation) {
     return (
       <div>
         <SectionHeader
           title="Evaluación no encontrada"
-          description="No se pudo cargar la información solicitada."
+          description="No se pudo encontrar la evaluación solicitada."
         />
 
         <Link
           to="/applicant/evaluaciones"
-          className="inline-flex items-center gap-2 text-emerald-700 font-black"
+          className="inline-flex items-center gap-2 text-sky-700 font-black"
         >
           <ArrowLeft size={18} />
-          Volver
+          Volver a evaluaciones
         </Link>
       </div>
     );
@@ -242,12 +364,12 @@ function ApplicantEvaluationDetail() {
     <div>
       <SectionHeader
         title="Resolver evaluación"
-        description="Completa tus respuestas y envía la evaluación técnica."
+        description="Lee cada pregunta con atención y envía tus respuestas al finalizar."
       />
 
       {message && (
         <div
-          className={`mb-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+          className={`mb-5 border rounded-2xl px-4 py-3 text-sm font-semibold ${alertStyles[messageType]}`}
         >
           {message}
         </div>
@@ -255,204 +377,206 @@ function ApplicantEvaluationDetail() {
 
       <Link
         to="/applicant/evaluaciones"
-        className="inline-flex items-center gap-2 text-emerald-700 font-black mb-6"
+        className="inline-flex items-center gap-2 text-sky-700 font-black mb-5"
       >
         <ArrowLeft size={18} />
         Volver a evaluaciones
       </Link>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
-        <section className="space-y-6">
-          <div className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div>
             <span
-              className={`inline-flex px-3 py-1 rounded-full border text-xs font-black mb-4 ${statusClass(
-                assignedEvaluation.estado
+              className={`inline-flex px-3 py-1 rounded-full border text-xs font-black mb-3 ${statusClass(
+                evaluation.estado
               )}`}
             >
-              {assignedEvaluation.estado}
+              {getEstadoVisible(evaluation.estado)}
             </span>
 
-            <h1 className="text-4xl font-black text-slate-900">
-              {evaluation.titulo}
+            <h1 className="text-3xl font-black text-slate-900">
+              {evaluation.evaluacionTitulo || evaluation.titulo}
             </h1>
 
-            <p className="text-slate-500 mt-3">
-              {evaluation.descripcion || "Sin descripción registrada."}
+            <p className="text-sm text-slate-500 mt-2">
+              Vacante: <strong>{evaluation.vacanteTitulo}</strong>
             </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-7">
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <Clock size={18} className="text-emerald-600" />
-                  <span className="font-bold">
-                    {evaluation.duracionMinutos} min
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">Duración</p>
-              </div>
-
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <BookOpenCheck size={18} className="text-emerald-600" />
-                  <span className="font-bold">
-                    {evaluation.puntajeMaximo} puntos
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">Puntaje máximo</p>
-              </div>
-
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <FileQuestion size={18} className="text-emerald-600" />
-                  <span className="font-bold">{questions.length}</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">Preguntas</p>
-              </div>
-            </div>
           </div>
 
-          {questions.map((question) => (
-            <div
-              key={question.id}
-              className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm"
-            >
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-5">
-                <div>
-                  <span className="inline-flex px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-black mb-3">
-                    Pregunta {question.orden} · {question.tipoPregunta}
-                  </span>
+          <div className="grid grid-cols-2 gap-3 min-w-[260px]">
+            <div className="border border-slate-200 rounded-xl p-3">
+              <Clock size={17} className="text-sky-600" />
+              <p className="text-sm font-black text-slate-900 mt-1">
+                {evaluation.duracionMinutos || "-"} min
+              </p>
+              <p className="text-xs text-slate-500">Duración</p>
+            </div>
 
-                  <h2 className="text-xl font-black text-slate-900">
-                    {question.enunciado}
+            <div className="border border-slate-200 rounded-xl p-3">
+              <BookOpenCheck size={17} className="text-sky-600" />
+              <p className="text-sm font-black text-slate-900 mt-1">
+                {answeredCount}/{questions.length}
+              </p>
+              <p className="text-xs text-slate-500">Respuestas</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 border border-slate-200 bg-slate-50 rounded-xl p-4 text-sm text-slate-600">
+          Asignada: {formatDateTime(evaluation.fechaAsignacion)}
+          {evaluation.fechaEnvio && (
+            <> · Enviada: {formatDateTime(evaluation.fechaEnvio)}</>
+          )}
+        </div>
+      </section>
+
+      {questions.length === 0 && (
+        <section className="border border-amber-200 bg-amber-50 rounded-2xl p-5 mb-6">
+          <p className="font-black text-amber-800">
+            Esta evaluación no tiene preguntas cargadas.
+          </p>
+          <p className="text-sm text-amber-700 mt-1">
+            Si la evaluación sí fue creada con preguntas, revisa que el backend
+            esté devolviendo el campo <strong>evaluacionId</strong> en la
+            asignación.
+          </p>
+        </section>
+      )}
+
+      {evaluation.estado === "REVISADA" && (
+        <section className="border border-emerald-200 bg-emerald-50 rounded-2xl p-5 mb-6">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 size={22} className="text-emerald-700 shrink-0 mt-1" />
+            <div>
+              <h2 className="font-black text-slate-900">
+                Evaluación revisada
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Puntaje obtenido:{" "}
+                <strong>{evaluation.puntajeObtenido ?? "Pendiente"}</strong>
+              </p>
+
+              {evaluation.comentarioTecnico && (
+                <p className="text-sm text-slate-600 mt-2">
+                  Comentario: <strong>{evaluation.comentarioTecnico}</strong>
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <form className="space-y-4">
+        {questions.map((question, index) => {
+          const questionId = getQuestionId(question);
+          const type = getQuestionType(question);
+          const options = getOptionsFromQuestion(question);
+
+          return (
+            <section
+              key={questionId}
+              className="bg-white border border-slate-200 rounded-2xl p-5"
+            >
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+                <div>
+                  <p className="text-xs font-black text-slate-500">
+                    Pregunta {index + 1}
+                  </p>
+
+                  <h2 className="text-lg font-black text-slate-900 mt-1">
+                    {getQuestionText(question)}
                   </h2>
                 </div>
 
-                <span className="inline-flex px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-black">
-                  {question.puntaje} pts
+                <span className="inline-flex px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-xs font-black text-slate-600">
+                  {questionTypeLabel(type)} · {getQuestionScore(question)} pts
                 </span>
               </div>
 
-              {(question.tipoPregunta === "MULTIPLE" ||
-                question.tipoPregunta === "VERDADERO_FALSO") && (
-                <div className="space-y-3">
-                  {question.opciones?.map((option) => (
-                    <label
-                      key={option.id}
-                      className={`flex items-start gap-3 rounded-2xl border p-4 cursor-pointer transition-colors ${
-                        Number(answers[question.id]?.opcionId) ===
-                        Number(option.id)
-                          ? "bg-emerald-50 border-emerald-200"
-                          : "bg-slate-50 border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name={`question-${question.id}`}
-                        value={option.id}
-                        checked={
-                          Number(answers[question.id]?.opcionId) ===
-                          Number(option.id)
-                        }
-                        disabled={!canSubmit}
-                        onChange={(e) =>
-                          handleClosedAnswer(question.id, e.target.value)
-                        }
-                        className="mt-1 accent-emerald-500"
-                      />
-
-                      <span className="font-semibold text-slate-700">
-                        {option.texto}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {(question.tipoPregunta === "TEXTO" ||
-                question.tipoPregunta === "CODIGO") && (
+              {type === "TEXTO" || type === "CODIGO" ? (
                 <textarea
-                  value={answers[question.id]?.respuestaTexto || ""}
-                  disabled={!canSubmit}
-                  onChange={(e) =>
-                    handleTextAnswer(question.id, e.target.value)
-                  }
+                  value={answers[questionId]?.respuestaTexto || ""}
+                  onChange={(e) => handleTextAnswer(questionId, e.target.value)}
+                  disabled={!canAnswer(evaluation.estado)}
                   placeholder={
-                    question.tipoPregunta === "CODIGO"
-                      ? "Escribe tu respuesta o fragmento de código..."
+                    type === "CODIGO"
+                      ? "Escribe tu solución o fragmento de código..."
                       : "Escribe tu respuesta..."
                   }
-                  className="w-full min-h-40 border border-slate-300 rounded-2xl p-4 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100 disabled:text-slate-500"
+                  className="w-full min-h-32 border border-slate-300 rounded-xl p-3 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-500"
                 />
+              ) : (
+                <div className="space-y-2">
+                  {options.map((option) => {
+                    const optionId = getOptionId(option);
+
+                    return (
+                      <label
+                        key={optionId}
+                        className={`flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer ${
+                          Number(answers[questionId]?.opcionId) ===
+                          Number(optionId)
+                            ? "border-sky-300 bg-sky-50"
+                            : "border-slate-200 bg-white hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={`question-${questionId}`}
+                          checked={
+                            Number(answers[questionId]?.opcionId) ===
+                            Number(optionId)
+                          }
+                          onChange={() => handleClosedAnswer(questionId, optionId)}
+                          disabled={!canAnswer(evaluation.estado)}
+                          className="accent-sky-600"
+                        />
+
+                        <span className="text-sm font-semibold text-slate-700">
+                          {getOptionText(option)}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               )}
-            </div>
-          ))}
-        </section>
+            </section>
+          );
+        })}
 
-        <aside className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm h-fit">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center mb-5">
-            <Send size={25} />
-          </div>
+        {canAnswer(evaluation.estado) && questions.length > 0 && (
+          <section className="flex flex-col md:flex-row justify-end gap-3">
+            <Link
+              to="/applicant/evaluaciones"
+              className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-xl text-sm font-black"
+            >
+              Cancelar
+            </Link>
 
-          <h2 className="text-2xl font-black text-slate-900">
-            Enviar evaluación
-          </h2>
-
-          <p className="text-slate-500 mt-2 text-sm">
-            Al enviar, tus respuestas se guardarán en MySQL y el líder técnico
-            podrá revisar el resultado.
-          </p>
-
-          <div className="mt-6 rounded-3xl bg-slate-50 border border-slate-200 p-4">
-            <p className="text-xs font-black text-slate-500">Vacante</p>
-            <p className="font-black text-slate-900 mt-1">
-              {assignedEvaluation.vacanteTitulo}
-            </p>
-          </div>
-
-          <div className="mt-4 rounded-3xl bg-slate-50 border border-slate-200 p-4">
-            <p className="text-xs font-black text-slate-500">
-              Fecha asignación
-            </p>
-            <p className="font-black text-slate-900 mt-1">
-              {formatDateTime(assignedEvaluation.fechaAsignacion)}
-            </p>
-          </div>
-
-          {assignedEvaluation.fechaEnvio && (
-            <div className="mt-4 rounded-3xl bg-slate-50 border border-slate-200 p-4">
-              <p className="text-xs font-black text-slate-500">Fecha envío</p>
-              <p className="font-black text-slate-900 mt-1">
-                {formatDateTime(assignedEvaluation.fechaEnvio)}
-              </p>
-            </div>
-          )}
-
-          {canSubmit ? (
             <button
               type="button"
-              onClick={handleSubmit}
               disabled={sending}
-              className="mt-7 w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 disabled:from-slate-300 disabled:to-slate-300 text-white px-6 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20 disabled:shadow-none"
+              onClick={handleSubmit}
+              className="inline-flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white px-5 py-3 rounded-xl text-sm font-black"
             >
-              <Send size={18} />
+              <Send size={17} />
               {sending ? "Enviando..." : "Enviar evaluación"}
             </button>
-          ) : (
-            <div className="mt-7 rounded-3xl bg-emerald-50 border border-emerald-100 p-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle2
-                  size={22}
-                  className="text-emerald-600 shrink-0 mt-1"
-                />
-                <p className="text-sm text-slate-600">
-                  Esta evaluación ya fue enviada o revisada. No se puede volver
-                  a modificar.
-                </p>
-              </div>
-            </div>
-          )}
-        </aside>
-      </div>
+          </section>
+        )}
+
+        {!canAnswer(evaluation.estado) && (
+          <section className="flex justify-end">
+            <Link
+              to="/applicant/evaluaciones"
+              className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-xl text-sm font-black"
+            >
+              <Save size={17} />
+              Volver
+            </Link>
+          </section>
+        )}
+      </form>
     </div>
   );
 }

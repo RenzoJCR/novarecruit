@@ -6,7 +6,6 @@ import {
   Calendar,
   CheckCircle2,
   DollarSign,
-  FileText,
   MapPin,
   Send,
 } from "lucide-react";
@@ -16,6 +15,35 @@ import { vacanteService } from "../../services/vacanteService.js";
 import { postulacionService } from "../../services/postulacionService.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 
+function formatDate(value) {
+  if (!value) return "Sin fecha";
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString("es-PE", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function formatMoney(value) {
+  if (value === null || value === undefined) return "No especificado";
+
+  return Number(value).toLocaleString("es-PE", {
+    style: "currency",
+    currency: "PEN",
+  });
+}
+
+function modalidadClass(modalidad) {
+  const styles = {
+    REMOTO: "bg-sky-50 text-sky-700 border-sky-200",
+    HIBRIDO: "bg-amber-50 text-amber-700 border-amber-200",
+    PRESENCIAL: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  };
+
+  return styles[modalidad] || "bg-slate-50 text-slate-600 border-slate-200";
+}
+
 function ApplicantJobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -23,6 +51,7 @@ function ApplicantJobDetail() {
 
   const [vacante, setVacante] = useState(null);
   const [declaredSkills, setDeclaredSkills] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
@@ -34,6 +63,7 @@ function ApplicantJobDetail() {
   const loadVacante = async () => {
     try {
       setLoading(true);
+
       const data = await vacanteService.getById(id);
       setVacante(data);
 
@@ -79,13 +109,13 @@ function ApplicantJobDetail() {
 
   const validateApplication = () => {
     if (!currentUser?.id) {
-      return "No se encontró el usuario autenticado. Inicia sesión nuevamente.";
+      return "No se encontró tu sesión. Inicia sesión nuevamente.";
     }
 
     if (!vacante) return "No se encontró la vacante.";
 
     if (vacante.estado !== "ACTIVA" && vacante.estado !== "EN_PROCESO") {
-      return "Esta vacante no está disponible para postular.";
+      return "Esta vacante ya no está disponible para postular.";
     }
 
     if (declaredSkills.length === 0) {
@@ -97,7 +127,7 @@ function ApplicantJobDetail() {
     );
 
     if (hasInvalidSkill) {
-      return "Completa correctamente las habilidades declaradas.";
+      return "Completa correctamente tus habilidades.";
     }
 
     const hasNegativeYears = declaredSkills.some(
@@ -131,7 +161,9 @@ function ApplicantJobDetail() {
 
     try {
       setSending(true);
+
       await postulacionService.create(payload);
+
       showMessage("Postulación enviada correctamente.", "success");
 
       setTimeout(() => {
@@ -147,25 +179,6 @@ function ApplicantJobDetail() {
     }
   };
 
-  const formatDate = (value) => {
-    if (!value) return "Sin fecha";
-
-    return new Date(`${value}T00:00:00`).toLocaleDateString("es-PE", {
-      year: "numeric",
-      month: "long",
-      day: "2-digit",
-    });
-  };
-
-  const formatMoney = (value) => {
-    if (value === null || value === undefined) return "No especificado";
-
-    return Number(value).toLocaleString("es-PE", {
-      style: "currency",
-      currency: "PEN",
-    });
-  };
-
   const alertStyles = {
     info: "bg-sky-50 border-sky-200 text-sky-700",
     success: "bg-emerald-50 border-emerald-200 text-emerald-700",
@@ -177,13 +190,14 @@ function ApplicantJobDetail() {
       <div>
         <SectionHeader
           title="Detalle de vacante"
-          description="Cargando información desde el backend."
+          description="Cargando información de la vacante."
         />
 
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center">
-          <h2 className="text-2xl font-black text-slate-900">
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <h2 className="text-xl font-black text-slate-900">
             Cargando vacante...
           </h2>
+          <p className="text-slate-500 mt-1">Un momento por favor.</p>
         </div>
       </div>
     );
@@ -199,7 +213,7 @@ function ApplicantJobDetail() {
 
         <Link
           to="/applicant/vacantes"
-          className="inline-flex items-center gap-2 text-emerald-700 font-black"
+          className="inline-flex items-center gap-2 text-sky-700 font-black"
         >
           <ArrowLeft size={18} />
           Volver a vacantes
@@ -212,12 +226,12 @@ function ApplicantJobDetail() {
     <div>
       <SectionHeader
         title="Detalle de vacante"
-        description="Revisa los requisitos y completa tu postulación."
+        description="Revisa la información del puesto y completa tu postulación."
       />
 
       {message && (
         <div
-          className={`mb-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+          className={`mb-5 border rounded-2xl px-4 py-3 text-sm font-semibold ${alertStyles[messageType]}`}
         >
           {message}
         </div>
@@ -225,192 +239,182 @@ function ApplicantJobDetail() {
 
       <Link
         to="/applicant/vacantes"
-        className="inline-flex items-center gap-2 text-emerald-700 font-black mb-6"
+        className="inline-flex items-center gap-2 text-sky-700 font-black mb-5"
       >
         <ArrowLeft size={18} />
         Volver a vacantes
       </Link>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_390px] gap-6">
-        <section className="space-y-6">
-          <div className="bg-white/95 border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-            <span className="inline-flex px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-black mb-4">
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div>
+            <span className="inline-flex px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 text-xs font-black mb-3">
               {vacante.areaNombre}
             </span>
 
-            <h1 className="text-4xl font-black text-slate-900">
+            <h1 className="text-3xl font-black text-slate-900">
               {vacante.titulo}
             </h1>
 
-            <p className="text-slate-500 mt-4 leading-relaxed">
+            <p className="text-sm text-slate-500 mt-2 max-w-3xl">
               {vacante.descripcion}
             </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-7">
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4 flex items-center gap-3">
-                <MapPin size={20} className="text-emerald-600" />
-                <div>
-                  <p className="text-xs font-black text-slate-500">Modalidad</p>
-                  <p className="font-bold text-slate-900">
-                    {vacante.modalidad} · {vacante.ubicacion || "Sin ubicación"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4 flex items-center gap-3">
-                <DollarSign size={20} className="text-emerald-600" />
-                <div>
-                  <p className="text-xs font-black text-slate-500">Salario</p>
-                  <p className="font-bold text-slate-900">
-                    {formatMoney(vacante.salario)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4 flex items-center gap-3">
-                <Calendar size={20} className="text-emerald-600" />
-                <div>
-                  <p className="text-xs font-black text-slate-500">
-                    Fecha de cierre
-                  </p>
-                  <p className="font-bold text-slate-900">
-                    {formatDate(vacante.fechaCierre)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-4 flex items-center gap-3">
-                <Briefcase size={20} className="text-emerald-600" />
-                <div>
-                  <p className="text-xs font-black text-slate-500">
-                    Experiencia
-                  </p>
-                  <p className="font-bold text-slate-900">
-                    {vacante.nivelExperiencia}
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
-          <div className="bg-white/95 border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-            <h2 className="text-2xl font-black text-slate-900 mb-2">
-              Requisitos técnicos
-            </h2>
-            <p className="text-slate-500 text-sm mb-6">
-              Declara tu nivel actual para cada habilidad solicitada.
-            </p>
+          <span
+            className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${modalidadClass(
+              vacante.modalidad
+            )}`}
+          >
+            {vacante.modalidad}
+          </span>
+        </div>
+      </section>
 
-            <div className="space-y-4">
-              {requiredSkills.map((skill, index) => (
-                <div
-                  key={skill.id}
-                  className="grid grid-cols-1 md:grid-cols-[1fr_180px_160px] gap-4 rounded-3xl bg-slate-50 border border-slate-200 p-4"
-                >
-                  <div>
-                    <p className="text-xs font-black text-slate-500">
-                      Habilidad requerida
-                    </p>
-                    <p className="font-black text-slate-900 mt-1">
-                      {skill.habilidadNombre}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      Nivel solicitado: {skill.nivelRequerido} ·{" "}
-                      {skill.obligatorio ? "Obligatoria" : "Deseable"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black text-slate-500 mb-2">
-                      Tu nivel
-                    </label>
-                    <select
-                      value={declaredSkills[index]?.nivelPostulante || "BASICO"}
-                      onChange={(e) =>
-                        handleSkillChange(
-                          index,
-                          "nivelPostulante",
-                          e.target.value
-                        )
-                      }
-                      className="input-light"
-                    >
-                      <option value="BASICO">Básico</option>
-                      <option value="INTERMEDIO">Intermedio</option>
-                      <option value="AVANZADO">Avanzado</option>
-                      <option value="EXPERTO">Experto</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-black text-slate-500 mb-2">
-                      Años exp.
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={declaredSkills[index]?.aniosExperiencia || 0}
-                      onChange={(e) =>
-                        handleSkillChange(
-                          index,
-                          "aniosExperiencia",
-                          e.target.value
-                        )
-                      }
-                      className="input-light"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <aside className="bg-white/95 border border-slate-200 rounded-[2rem] p-7 shadow-sm h-fit">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center mb-5">
-            <Send size={25} />
-          </div>
-
-          <h2 className="text-2xl font-black text-slate-900">
-            Enviar postulación
-          </h2>
-
-          <p className="text-slate-500 mt-2 text-sm">
-            Tu postulación se registrará en MySQL y RRHH podrá revisarla desde
-            su panel.
+      <section className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <MapPin size={18} className="text-sky-600" />
+          <p className="text-sm font-black text-slate-900 mt-2">
+            {vacante.ubicacion || "Sin ubicación"}
           </p>
+          <p className="text-xs text-slate-500">Ubicación</p>
+        </div>
 
-          <div className="mt-6 rounded-3xl bg-emerald-50 border border-emerald-100 p-4">
-            <div className="flex gap-3">
-              <CheckCircle2 size={22} className="text-emerald-600 shrink-0" />
-              <p className="text-sm text-slate-600">
-                Al postular, se generará una notificación y un log de actividad.
-              </p>
-            </div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <DollarSign size={18} className="text-sky-600" />
+          <p className="text-sm font-black text-slate-900 mt-2">
+            {formatMoney(vacante.salario)}
+          </p>
+          <p className="text-xs text-slate-500">Salario</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <Briefcase size={18} className="text-sky-600" />
+          <p className="text-sm font-black text-slate-900 mt-2">
+            {vacante.nivelExperiencia}
+          </p>
+          <p className="text-xs text-slate-500">Experiencia</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <Calendar size={18} className="text-sky-600" />
+          <p className="text-sm font-black text-slate-900 mt-2">
+            {formatDate(vacante.fechaCierre)}
+          </p>
+          <p className="text-xs text-slate-500">Cierre</p>
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 mb-6">
+        <h2 className="text-xl font-black text-slate-900">
+          Requisitos de la vacante
+        </h2>
+
+        <p className="text-sm text-slate-500 mt-1">
+          Indica tu nivel y experiencia en cada habilidad solicitada.
+        </p>
+
+        {requiredSkills.length === 0 ? (
+          <div className="mt-5 border border-slate-200 rounded-xl p-4 text-slate-500">
+            Esta vacante no tiene habilidades registradas.
+          </div>
+        ) : (
+          <div className="mt-5 space-y-3">
+            {requiredSkills.map((skill, index) => (
+              <div
+                key={skill.id}
+                className="grid grid-cols-1 md:grid-cols-[1fr_180px_160px] gap-3 items-center border border-slate-200 rounded-xl p-4"
+              >
+                <div>
+                  <p className="font-black text-slate-900">
+                    {skill.habilidadNombre}
+                  </p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Nivel requerido: {skill.nivelRequerido} ·{" "}
+                    {skill.obligatorio ? "Obligatoria" : "Deseable"}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-500 mb-2">
+                    Tu nivel
+                  </label>
+
+                  <select
+                    value={declaredSkills[index]?.nivelPostulante || "BASICO"}
+                    onChange={(e) =>
+                      handleSkillChange(
+                        index,
+                        "nivelPostulante",
+                        e.target.value
+                      )
+                    }
+                    className="input-light"
+                  >
+                    <option value="BASICO">Básico</option>
+                    <option value="INTERMEDIO">Intermedio</option>
+                    <option value="AVANZADO">Avanzado</option>
+                    <option value="EXPERTO">Experto</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-500 mb-2">
+                    Años de experiencia
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0"
+                    value={declaredSkills[index]?.aniosExperiencia || 0}
+                    onChange={(e) =>
+                      handleSkillChange(
+                        index,
+                        "aniosExperiencia",
+                        e.target.value
+                      )
+                    }
+                    className="input-light"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-2xl p-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">
+              Enviar postulación
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Tu postulación quedará asociada a tu cuenta.
+            </p>
           </div>
 
           <button
             type="button"
             onClick={handleApply}
             disabled={sending}
-            className="mt-7 w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 disabled:from-slate-300 disabled:to-slate-300 text-white px-6 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20 disabled:shadow-none"
+            className="inline-flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white px-5 py-3 rounded-xl text-sm font-black"
           >
-            <Send size={18} />
+            <Send size={17} />
             {sending ? "Enviando..." : "Postular ahora"}
           </button>
+        </div>
 
-          <div className="mt-6 rounded-3xl bg-slate-50 border border-slate-200 p-4">
-            <div className="flex items-start gap-3">
-              <FileText size={20} className="text-emerald-600 shrink-0 mt-1" />
-              <p className="text-sm text-slate-600">
-                Estás postulando como{" "}
-                <strong>{currentUser?.nombreCompleto || "usuario autenticado"}</strong>.
-                Esta acción quedará asociada a tu cuenta.
-              </p>
-            </div>
+        <div className="mt-4 border border-sky-100 bg-sky-50 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 size={18} className="text-sky-700 shrink-0 mt-1" />
+            <p className="text-sm text-slate-600">
+              Estás postulando como{" "}
+              <strong>{currentUser?.nombreCompleto || "usuario"}</strong>.
+            </p>
           </div>
-        </aside>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

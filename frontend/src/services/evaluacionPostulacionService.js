@@ -11,8 +11,10 @@ export const evaluacionPostulacionService = {
     return response.data;
   },
 
-  async getByPostulante(usuarioId) {
-    const response = await api.get(`/evaluaciones-postulacion/postulante/${usuarioId}`);
+  async getByPostulante(postulanteId) {
+    const response = await api.get(
+      `/evaluaciones-postulacion/postulante/${postulanteId}`
+    );
     return response.data;
   },
 
@@ -26,8 +28,17 @@ export const evaluacionPostulacionService = {
     return response.data;
   },
 
-  async submit(data) {
-    const response = await api.post("/evaluaciones-postulacion/enviar", data);
+  async submit(id, data) {
+    const payload = {
+      evaluacionPostulacionId: Number(id),
+      respuestas: data.respuestas || [],
+    };
+
+    const response = await api.post(
+      "/evaluaciones-postulacion/enviar",
+      payload
+    );
+
     return response.data;
   },
 
@@ -36,6 +47,7 @@ export const evaluacionPostulacionService = {
       `/evaluaciones-postulacion/${id}/revision-tecnica`,
       data
     );
+
     return response.data;
   },
 };

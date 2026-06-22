@@ -1,92 +1,76 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
-  FileText,
+  Edit,
   Plus,
-  Sparkles,
-  CheckCircle2,
-  Search,
   RefreshCw,
-  Pencil,
+  Save,
+  Search,
   Trash2,
   X,
-  Save,
-  Activity,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { areaService } from "../../services/areaService.js";
-import { logService } from "../../services/logService.js";
 
 const initialForm = {
   nombre: "",
   descripcion: "",
-  estado: true,
 };
-
-const inputWithIconClass =
-  "w-full border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100";
 
 function AdminAreas() {
   const [areas, setAreas] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [selectedArea, setSelectedArea] = useState(null);
   const [form, setForm] = useState(initialForm);
-  const [editingAreaId, setEditingAreaId] = useState(null);
 
   const [search, setSearch] = useState("");
-  const [loadingAreas, setLoadingAreas] = useState(true);
-  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [selectedStatus, setSelectedStatus] = useState("Todos");
+
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deactivatingId, setDeactivatingId] = useState(null);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
-  const filteredAreas = useMemo(() => {
-    const value = search.toLowerCase().trim();
-
-    if (!value) return areas;
-
-    return areas.filter((area) => {
-      return (
-        area.nombre?.toLowerCase().includes(value) ||
-        area.descripcion?.toLowerCase().includes(value)
-      );
-    });
-  }, [areas, search]);
-
-  const activeAreasCount = areas.filter((area) => area.estado).length;
-
   const loadAreas = async () => {
     try {
-      setLoadingAreas(true);
+      setLoading(true);
       const data = await areaService.getAll();
       setAreas(data);
     } catch (error) {
       showMessage(error.userMessage || "No se pudieron cargar las áreas.", "error");
     } finally {
-      setLoadingAreas(false);
+      setLoading(false);
     }
-  };
-
-  const loadLogs = async () => {
-    try {
-      setLoadingLogs(true);
-      const data = await logService.getLatest();
-      setLogs(data.slice(0, 5));
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoadingLogs(false);
-    }
-  };
-
-  const refreshData = async () => {
-    await Promise.all([loadAreas(), loadLogs()]);
   };
 
   useEffect(() => {
-    refreshData();
+    loadAreas();
   }, []);
+
+  const filteredAreas = useMemo(() => {
+    const value = search.toLowerCase().trim();
+
+    return areas.filter((area) => {
+      const statusText = area.estado ? "activa" : "inactiva";
+
+      const matchesSearch =
+        area.nombre?.toLowerCase().includes(value) ||
+        area.descripcion?.toLowerCase().includes(value) ||
+        statusText.includes(value);
+
+      const matchesStatus =
+        selectedStatus === "Todos" ||
+        (selectedStatus === "Activas" && area.estado === true) ||
+        (selectedStatus === "Inactivas" && area.estado === false);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [areas, search, selectedStatus]);
+
+  const totalActivas = areas.filter((item) => item.estado === true).length;
+  const totalInactivas = areas.filter((item) => item.estado === false).length;
 
   const showMessage = (text, type = "info") => {
     setMessage(text);
@@ -94,56 +78,41 @@ function AdminAreas() {
 
     setTimeout(() => {
       setMessage("");
-    }, 3500);
-  };
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-
-    setForm((prevForm) => ({
-      ...prevForm,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    }, 4000);
   };
 
   const resetForm = () => {
     setForm(initialForm);
-    setEditingAreaId(null);
+    setSelectedArea(null);
   };
 
-  const handleEdit = (area) => {
-    setEditingAreaId(area.id);
+  const openCreate = () => {
+    setSelectedArea(null);
+    setForm(initialForm);
+  };
+
+  const openEdit = (area) => {
+    setSelectedArea(area);
     setForm({
       nombre: area.nombre || "",
       descripcion: area.descripcion || "",
-      estado: Boolean(area.estado),
-    });
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
     });
   };
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
   const validateForm = () => {
-    if (!form.nombre.trim()) {
-      return "Ingresa el nombre del área.";
-    }
+    if (!form.nombre.trim()) return "Ingresa el nombre del área.";
 
     if (form.nombre.trim().length < 3) {
-      return "El nombre del área debe tener al menos 3 caracteres.";
-    }
-
-    if (!form.descripcion.trim()) {
-      return "Ingresa la descripción del área.";
-    }
-
-    if (form.descripcion.trim().length < 10) {
-      return "La descripción debe tener al menos 10 caracteres.";
-    }
-
-    if (form.descripcion.trim().length > 255) {
-      return "La descripción no debe superar los 255 caracteres.";
+      return "El nombre debe tener al menos 3 caracteres.";
     }
 
     return null;
@@ -161,15 +130,14 @@ function AdminAreas() {
 
     const payload = {
       nombre: form.nombre.trim(),
-      descripcion: form.descripcion.trim(),
-      estado: form.estado,
+      descripcion: form.descripcion.trim() || null,
     };
 
     try {
       setSaving(true);
 
-      if (editingAreaId) {
-        await areaService.update(editingAreaId, payload);
+      if (selectedArea) {
+        await areaService.update(selectedArea.id, payload);
         showMessage("Área actualizada correctamente.", "success");
       } else {
         await areaService.create(payload);
@@ -177,7 +145,7 @@ function AdminAreas() {
       }
 
       resetForm();
-      await refreshData();
+      await loadAreas();
     } catch (error) {
       showMessage(error.userMessage || "No se pudo guardar el área.", "error");
     } finally {
@@ -187,27 +155,22 @@ function AdminAreas() {
 
   const handleDeactivate = async (area) => {
     const confirmed = window.confirm(
-      `¿Seguro que deseas desactivar el área "${area.nombre}"?`
+      `¿Deseas desactivar el área "${area.nombre}"?`
     );
 
     if (!confirmed) return;
 
     try {
+      setDeactivatingId(area.id);
       await areaService.deactivate(area.id);
+
       showMessage("Área desactivada correctamente.", "success");
-      await refreshData();
+      await loadAreas();
     } catch (error) {
       showMessage(error.userMessage || "No se pudo desactivar el área.", "error");
+    } finally {
+      setDeactivatingId(null);
     }
-  };
-
-  const formatDate = (value) => {
-    if (!value) return "Sin fecha";
-
-    return new Date(value).toLocaleString("es-PE", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
   };
 
   const alertStyles = {
@@ -219,320 +182,238 @@ function AdminAreas() {
   return (
     <div>
       <SectionHeader
-        title="Gestión de áreas"
-        description="Administra las áreas internas usadas para clasificar vacantes, postulantes y evaluaciones técnicas."
+        title="Áreas"
+        description="Administra las áreas internas asociadas a las vacantes."
+        action={
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl text-sm font-black"
+          >
+            <Plus size={17} />
+            Nueva área
+          </button>
+        }
       />
 
       {message && (
         <div
-          className={`mb-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+          className={`mb-5 border rounded-2xl px-4 py-3 text-sm font-semibold ${alertStyles[messageType]}`}
         >
           {message}
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[390px_1fr] gap-6">
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] p-7 shadow-sm h-fit"
-        >
-          <div className="flex items-center gap-3 mb-7">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center">
-              <Building2 size={24} />
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">Total áreas</p>
+          <p className="text-3xl font-black text-rose-600 mt-1">
+            {areas.length}
+          </p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">Activas</p>
+          <p className="text-3xl font-black text-emerald-600 mt-1">
+            {totalActivas}
+          </p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">Inactivas</p>
+          <p className="text-3xl font-black text-slate-700 mt-1">
+            {totalInactivas}
+          </p>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+        <main>
+          <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3">
+            <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-100">
+              <Search size={18} className="text-rose-600" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, descripción o estado..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full outline-none bg-transparent text-sm text-slate-900"
+              />
             </div>
 
-            <div>
-              <h2 className="text-2xl font-black text-slate-900">
-                {editingAreaId ? "Editar área" : "Nueva área"}
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="input-light"
+            >
+              <option value="Todos">Todas</option>
+              <option value="Activas">Activas</option>
+              <option value="Inactivas">Inactivas</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={loadAreas}
+              className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-black"
+            >
+              <RefreshCw size={17} />
+              Actualizar
+            </button>
+          </section>
+
+          {loading ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+              <h2 className="text-xl font-black text-slate-900">
+                Cargando áreas...
               </h2>
-              <p className="text-sm text-slate-500">
-                {editingAreaId
-                  ? "Actualiza los datos del área seleccionada."
-                  : "Registra una categoría para las vacantes."}
+            </div>
+          ) : filteredAreas.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+              <Building2 size={36} className="mx-auto text-rose-600" />
+              <h2 className="text-xl font-black text-slate-900 mt-3">
+                No hay áreas para mostrar
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Crea una nueva área o ajusta los filtros.
               </p>
             </div>
-          </div>
+          ) : (
+            <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+              <div className="hidden lg:grid grid-cols-[1.2fr_1.5fr_0.7fr_170px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+                <span>Área</span>
+                <span>Descripción</span>
+                <span>Estado</span>
+                <span className="text-right">Acciones</span>
+              </div>
 
-          <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Nombre del área *
-              </label>
+              <div className="divide-y divide-slate-200">
+                {filteredAreas.map((area) => (
+                  <div
+                    key={area.id}
+                    className="grid grid-cols-1 lg:grid-cols-[1.2fr_1.5fr_0.7fr_170px] gap-4 px-5 py-4 items-center"
+                  >
+                    <div>
+                      <p className="font-black text-slate-900">
+                        {area.nombre}
+                      </p>
+                    </div>
 
-              <div className="relative">
-                <Building2
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none"
-                />
+                    <div>
+                      <p className="text-sm text-slate-600">
+                        {area.descripcion || "Sin descripción"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span
+                        className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${
+                          area.estado
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-slate-50 text-slate-600 border-slate-200"
+                        }`}
+                      >
+                        {area.estado ? "Activa" : "Inactiva"}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-start lg:justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(area)}
+                        className="inline-flex items-center gap-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-xl text-sm font-bold"
+                      >
+                        <Edit size={16} />
+                        Editar
+                      </button>
+
+                      {area.estado && (
+                        <button
+                          type="button"
+                          disabled={deactivatingId === area.id}
+                          onClick={() => handleDeactivate(area)}
+                          className="inline-flex items-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:bg-slate-100 text-rose-700 disabled:text-slate-500 px-3 py-2 rounded-xl text-sm font-bold"
+                        >
+                          <Trash2 size={16} />
+                          Desactivar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </main>
+
+        <aside>
+          <section className="bg-white border border-slate-200 rounded-2xl p-5 sticky top-24">
+            <div className="flex items-start justify-between gap-3 mb-5">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  {selectedArea ? "Editar área" : "Nueva área"}
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  {selectedArea
+                    ? "Actualiza la información del área."
+                    : "Registra un área para clasificar vacantes."}
+                </p>
+              </div>
+
+              {selectedArea && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="w-9 h-9 rounded-xl border border-slate-300 hover:bg-slate-50 flex items-center justify-center text-slate-600"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Nombre *
+                </label>
 
                 <input
                   name="nombre"
                   value={form.nombre}
                   onChange={handleChange}
-                  placeholder="Ej: Data Analytics"
-                  className={inputWithIconClass}
+                  placeholder="Ej: Desarrollo de Software"
+                  className="input-light"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Descripción *
-              </label>
-
-              <div className="relative">
-                <FileText
-                  size={18}
-                  className="absolute left-4 top-5 text-emerald-600 pointer-events-none"
-                />
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Descripción
+                </label>
 
                 <textarea
                   name="descripcion"
                   value={form.descripcion}
                   onChange={handleChange}
-                  placeholder="Describe el objetivo del área..."
-                  className="w-full min-h-36 border border-slate-300 rounded-xl py-3 pr-4 pl-12 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="Descripción breve del área."
+                  className="w-full min-h-28 border border-slate-300 rounded-xl p-3 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
                 />
               </div>
-            </div>
 
-            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 cursor-pointer">
-              <input
-                type="checkbox"
-                name="estado"
-                checked={form.estado}
-                onChange={handleChange}
-                className="accent-emerald-500"
-              />
-              <div>
-                <p className="font-black text-slate-900">Área activa</p>
-                <p className="text-sm text-slate-500">
-                  Las áreas activas podrán usarse en vacantes.
-                </p>
-              </div>
-            </label>
-
-            <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-sky-50 border border-emerald-100 p-5">
-              <div className="flex items-start gap-3">
-                <Sparkles
-                  size={22}
-                  className="text-emerald-600 shrink-0 mt-1"
-                />
-
-                <div>
-                  <h3 className="font-black text-slate-900">
-                    Datos reales desde MySQL
-                  </h3>
-                  <p className="text-sm text-slate-600 mt-1">
-                    Esta pantalla ya consume el backend de Spring Boot mediante
-                    JPA y guarda los cambios en MySQL.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3">
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 disabled:from-slate-300 disabled:to-slate-300 text-white py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20 disabled:shadow-none"
+                className="w-full inline-flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white px-4 py-2.5 rounded-xl text-sm font-black"
               >
-                {editingAreaId ? <Save size={18} /> : <Plus size={18} />}
+                <Save size={17} />
                 {saving
                   ? "Guardando..."
-                  : editingAreaId
-                  ? "Actualizar área"
-                  : "Crear área"}
+                  : selectedArea
+                    ? "Guardar cambios"
+                    : "Crear área"}
               </button>
-
-              {editingAreaId && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="w-full inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 py-3 rounded-2xl font-black"
-                >
-                  <X size={18} />
-                  Cancelar edición
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
-
-        <section className="space-y-6">
-          <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-7">
-              <div>
-                <h2 className="text-2xl font-black text-slate-900">
-                  Áreas registradas
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  {areas.length} área(s) registradas · {activeAreasCount} activa(s)
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={refreshData}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-sm font-bold hover:bg-emerald-100"
-              >
-                <RefreshCw size={17} />
-                Actualizar
-              </button>
-            </div>
-
-            <div className="flex items-center gap-3 border border-slate-300 rounded-2xl px-4 py-3 bg-white focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100 mb-6">
-              <Search size={18} className="text-emerald-600" />
-              <input
-                type="text"
-                placeholder="Buscar por nombre o descripción..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full outline-none bg-transparent text-slate-900"
-              />
-            </div>
-
-            {loadingAreas ? (
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-8 text-center">
-                <p className="font-black text-slate-900">Cargando áreas...</p>
-                <p className="text-slate-500 mt-2">
-                  Consultando información desde el backend.
-                </p>
-              </div>
-            ) : filteredAreas.length === 0 ? (
-              <div className="rounded-3xl bg-slate-50 border border-slate-200 p-8 text-center">
-                <h3 className="text-xl font-black text-slate-900">
-                  No hay áreas para mostrar
-                </h3>
-                <p className="text-slate-500 mt-2">
-                  Crea una nueva área o cambia el filtro de búsqueda.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {filteredAreas.map((area) => (
-                  <article
-                    key={area.id}
-                    className={`group relative overflow-hidden border rounded-3xl p-6 hover:shadow-xl hover:-translate-y-1 transition-all ${
-                      area.estado
-                        ? "bg-slate-50 border-slate-200"
-                        : "bg-slate-100 border-slate-200 opacity-70"
-                    }`}
-                  >
-                    <div className="absolute top-0 right-0 w-28 h-28 bg-gradient-to-br from-emerald-100 to-sky-100 rounded-full blur-2xl opacity-60 translate-x-8 -translate-y-8 group-hover:opacity-90 transition-opacity" />
-
-                    <div className="relative z-10">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-emerald-700 flex items-center justify-center mb-5">
-                          <Building2 size={23} />
-                        </div>
-
-                        <span
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border ${
-                            area.estado
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-slate-50 text-slate-500 border-slate-200"
-                          }`}
-                        >
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              area.estado ? "bg-emerald-500" : "bg-slate-400"
-                            }`}
-                          />
-                          {area.estado ? "Activa" : "Inactiva"}
-                        </span>
-                      </div>
-
-                      <h3 className="text-xl font-black text-slate-900">
-                        {area.nombre}
-                      </h3>
-
-                      <p className="text-slate-500 mt-3 leading-relaxed">
-                        {area.descripcion}
-                      </p>
-
-                      <p className="text-xs text-slate-400 mt-4">
-                        Creada: {formatDate(area.createdAt)}
-                      </p>
-
-                      <div className="flex flex-col sm:flex-row gap-3 mt-5">
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(area)}
-                          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-white text-slate-700 px-4 py-2 rounded-2xl font-black"
-                        >
-                          <Pencil size={17} />
-                          Editar
-                        </button>
-
-                        {area.estado && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeactivate(area)}
-                            className="inline-flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-4 py-2 rounded-2xl font-black"
-                          >
-                            <Trash2 size={17} />
-                            Desactivar
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] p-7 shadow-sm">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center">
-                <Activity size={24} />
-              </div>
-
-              <div>
-                <h2 className="text-xl font-black text-slate-900">
-                  Actividad reciente
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Últimos registros del backend.
-                </p>
-              </div>
-            </div>
-
-            {loadingLogs ? (
-              <p className="text-slate-500">Cargando logs...</p>
-            ) : logs.length === 0 ? (
-              <p className="text-slate-500">No hay logs registrados.</p>
-            ) : (
-              <div className="space-y-3">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="rounded-2xl bg-slate-50 border border-slate-200 p-4"
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                      <p className="font-black text-slate-900">
-                        {log.accion}
-                      </p>
-
-                      <span className="text-xs text-slate-400">
-                        {formatDate(log.fechaHora)}
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-slate-500 mt-1">
-                      {log.descripcion}
-                    </p>
-
-                    <span className="inline-flex mt-3 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-bold">
-                      {log.modulo}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
+            </form>
+          </section>
+        </aside>
       </div>
     </div>
   );
