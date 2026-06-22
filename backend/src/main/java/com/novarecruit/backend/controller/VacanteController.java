@@ -47,6 +47,14 @@ public class VacanteController {
         return vacanteService.actualizarVacante(id, request);
     }
 
+    @PatchMapping("/{vacanteId}/seleccionar-ganador/{postulacionId}")
+    public VacanteResponse seleccionarGanador(
+            @PathVariable Long vacanteId,
+            @PathVariable Long postulacionId
+    ) {
+        return vacanteService.seleccionarGanador(vacanteId, postulacionId);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cancelarVacante(@PathVariable Long id) {

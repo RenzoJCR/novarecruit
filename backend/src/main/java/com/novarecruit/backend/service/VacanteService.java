@@ -7,6 +7,7 @@ import com.novarecruit.backend.dto.response.VacanteResponse;
 import com.novarecruit.backend.entity.*;
 import com.novarecruit.backend.exception.BusinessException;
 import com.novarecruit.backend.repository.AreaRepository;
+import com.novarecruit.backend.repository.PostulacionRepository;
 import com.novarecruit.backend.repository.UsuarioRepository;
 import com.novarecruit.backend.repository.VacanteHabilidadRepository;
 import com.novarecruit.backend.repository.VacanteRepository;
@@ -30,8 +31,10 @@ public class VacanteService {
     private final VacanteHabilidadRepository vacanteHabilidadRepository;
     private final AreaRepository areaRepository;
     private final UsuarioRepository usuarioRepository;
+    private final PostulacionRepository postulacionRepository;
     private final HabilidadService habilidadService;
     private final LogSistemaService logSistemaService;
+    private final NotificacionService notificacionService;
 
     public List<VacanteResponse> listarVacantes() {
         return vacanteRepository.findAllByOrderByIdDesc()
@@ -102,6 +105,10 @@ public class VacanteService {
 
         Vacante vacante = buscarVacantePorId(id);
 
+        if ("CERRADA".equals(vacante.getEstado())) {
+            throw new BusinessException("No se puede editar una vacante cerrada.");
+        }
+
         Area area = areaRepository.findById(request.getAreaId())
                 .orElseThrow(() -> new BusinessException("No se encontró el área seleccionada."));
 
@@ -140,6 +147,7 @@ public class VacanteService {
         return mapToResponse(vacanteActualizada);
     }
 
+    @Transactional
     public void cancelarVacante(Long id) {
         Vacante vacante = buscarVacantePorId(id);
 
@@ -161,6 +169,90 @@ public class VacanteService {
                 "Se canceló la vacante: " + vacante.getTitulo(),
                 "127.0.0.1"
         );
+    }
+
+    @Transactional
+    public VacanteResponse seleccionarGanador(Long vacanteId, Long postulacionId) {
+        Vacante vacante = buscarVacantePorId(vacanteId);
+
+        if ("CANCELADA".equals(vacante.getEstado())) {
+            throw new BusinessException("No se puede seleccionar ganador en una vacante cancelada.");
+        }
+
+        if ("CERRADA".equals(vacante.getEstado()) || vacante.getPostulacionGanadoraId() != null) {
+            throw new BusinessException("Esta vacante ya tiene un ganador seleccionado.");
+        }
+
+        Postulacion postulacionGanadora = postulacionRepository.findById(postulacionId)
+                .orElseThrow(() -> new BusinessException("No se encontró la postulación seleccionada."));
+
+        if (!postulacionGanadora.getVacante().getId().equals(vacanteId)) {
+            throw new BusinessException("La postulación seleccionada no pertenece a esta vacante.");
+        }
+
+        if (!"APROBADO_TECNICO".equals(postulacionGanadora.getEstado())) {
+            throw new BusinessException("Solo se puede seleccionar como ganador a un postulante aprobado técnicamente.");
+        }
+
+        List<Postulacion> postulacionesVacante = postulacionRepository.findByVacante_Id(vacanteId);
+
+        for (Postulacion postulacion : postulacionesVacante) {
+            if (postulacion.getId().equals(postulacionGanadora.getId())) {
+                postulacion.setEstado("SELECCIONADO");
+                postulacion.setEsGanador(true);
+
+                notificacionService.crearNotificacion(
+                        postulacion.getUsuario().getId(),
+                        "Has sido seleccionado",
+                        "Fuiste seleccionado como ganador para la vacante: " + vacante.getTitulo()
+                                + ". RRHH se comunicará contigo para continuar el proceso.",
+                        "RESULTADO",
+                        "/applicant/postulaciones"
+                );
+            } else if (debeMarcarComoNoSeleccionado(postulacion.getEstado())) {
+                postulacion.setEstado("NO_SELECCIONADO");
+                postulacion.setEsGanador(false);
+
+                notificacionService.crearNotificacion(
+                        postulacion.getUsuario().getId(),
+                        "Resultado final del proceso",
+                        "La vacante " + vacante.getTitulo()
+                                + " ya cuenta con un postulante seleccionado. Gracias por participar.",
+                        "RESULTADO",
+                        "/applicant/postulaciones"
+                );
+            }
+
+            postulacionRepository.save(postulacion);
+        }
+
+        vacante.setPostulacionGanadoraId(postulacionGanadora.getId());
+        vacante.setEstado("CERRADA");
+
+        Vacante vacanteCerrada = vacanteRepository.save(vacante);
+
+        logSistemaService.registrarLog(
+                null,
+                "SELECCIONAR_GANADOR",
+                "VACANTES",
+                "Se seleccionó como ganador a "
+                        + postulacionGanadora.getUsuario().getCorreo()
+                        + " para la vacante: " + vacante.getTitulo(),
+                "127.0.0.1"
+        );
+
+        return mapToResponse(vacanteCerrada);
+    }
+
+    private boolean debeMarcarComoNoSeleccionado(String estado) {
+        return Set.of(
+                "POSTULADO",
+                "EN_REVISION_RRHH",
+                "APROBADO_RRHH",
+                "EVALUACION_PENDIENTE",
+                "EVALUACION_COMPLETADA",
+                "APROBADO_TECNICO"
+        ).contains(estado);
     }
 
     private void guardarHabilidadesVacante(Vacante vacante, List<VacanteHabilidadRequest> habilidadesRequest) {

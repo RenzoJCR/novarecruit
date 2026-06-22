@@ -11,6 +11,8 @@ public interface PostulacionRepository extends JpaRepository<Postulacion, Long> 
 
     List<Postulacion> findAllByOrderByFechaPostulacionDesc();
 
+    List<Postulacion> findByVacante_Id(Long vacanteId);
+
     List<Postulacion> findByVacante_IdOrderByFechaPostulacionDesc(Long vacanteId);
 
     List<Postulacion> findByUsuario_IdOrderByFechaPostulacionDesc(Long usuarioId);

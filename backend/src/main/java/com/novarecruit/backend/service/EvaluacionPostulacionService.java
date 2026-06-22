@@ -311,6 +311,8 @@ public class EvaluacionPostulacionService {
         return EvaluacionPostulacionResponse.builder()
                 .id(item.getId())
                 .postulacionId(postulacion.getId())
+                .postulacionEstado(postulacion.getEstado())
+                .esGanador(postulacion.getEsGanador())
                 .evaluacionId(evaluacion.getId())
                 .evaluacionTitulo(evaluacion.getTitulo())
                 .vacanteId(postulacion.getVacante().getId())

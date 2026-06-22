@@ -16,6 +16,9 @@ public class EvaluacionPostulacionResponse {
     private Long id;
 
     private Long postulacionId;
+    private String postulacionEstado;
+    private Boolean esGanador;
+
     private Long evaluacionId;
     private String evaluacionTitulo;
 

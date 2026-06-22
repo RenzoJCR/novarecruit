@@ -26,6 +26,13 @@ export const vacanteService = {
     return response.data;
   },
 
+  async selectWinner(vacanteId, postulacionId) {
+    const response = await api.patch(
+      `/vacantes/${vacanteId}/seleccionar-ganador/${postulacionId}`
+    );
+    return response.data;
+  },
+
   async cancel(id) {
     await api.delete(`/vacantes/${id}`);
   },
