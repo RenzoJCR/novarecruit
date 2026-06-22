@@ -1,91 +1,235 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
-  XCircle,
+  Clock,
+  RefreshCw,
   Search,
-  FileText,
-  Calendar,
-  UserRound,
+  UserCheck,
+  UserX,
+  XCircle,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
-import StatusBadge from "../../components/ui/StatusBadge.jsx";
-import { useData } from "../../context/DataContext.jsx";
+import { postulacionService } from "../../services/postulacionService.js";
+import { logService } from "../../services/logService.js";
 
 function RrhhApplications() {
-  const { applications, updateApplicationStatus } = useData();
+  const [postulaciones, setPostulaciones] = useState([]);
+  const [logs, setLogs] = useState([]);
 
-  const [selectedStatus, setSelectedStatus] = useState("Todos");
   const [search, setSearch] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("Todos");
+  const [reviewComments, setReviewComments] = useState({});
 
-  const filteredApplications = useMemo(() => {
-    return applications.filter((application) => {
-      const matchesStatus =
-        selectedStatus === "Todos" || application.status === selectedStatus;
+  const [loadingPostulaciones, setLoadingPostulaciones] = useState(true);
+  const [loadingLogs, setLoadingLogs] = useState(true);
 
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("info");
+
+  const filteredPostulaciones = useMemo(() => {
+    const value = search.toLowerCase().trim();
+
+    return postulaciones.filter((postulacion) => {
       const matchesSearch =
-        application.candidate.toLowerCase().includes(search.toLowerCase()) ||
-        application.jobTitle.toLowerCase().includes(search.toLowerCase()) ||
-        application.area.toLowerCase().includes(search.toLowerCase());
+        postulacion.postulanteNombre?.toLowerCase().includes(value) ||
+        postulacion.postulanteCorreo?.toLowerCase().includes(value) ||
+        postulacion.vacanteTitulo?.toLowerCase().includes(value) ||
+        postulacion.areaNombre?.toLowerCase().includes(value);
 
-      return matchesStatus && matchesSearch;
+      const matchesStatus =
+        selectedStatus === "Todos" || postulacion.estado === selectedStatus;
+
+      return matchesSearch && matchesStatus;
     });
-  }, [applications, selectedStatus, search]);
+  }, [postulaciones, search, selectedStatus]);
 
-  const approveApplication = (applicationId) => {
-    updateApplicationStatus(applicationId, "APROBADO_RRHH");
+  const pendingCount = postulaciones.filter(
+    (postulacion) =>
+      postulacion.estado === "POSTULADO" ||
+      postulacion.estado === "EN_REVISION_RRHH"
+  ).length;
+
+  const approvedCount = postulaciones.filter(
+    (postulacion) => postulacion.estado === "APROBADO_RRHH"
+  ).length;
+
+  const rejectedCount = postulaciones.filter(
+    (postulacion) => postulacion.estado === "RECHAZADO_RRHH"
+  ).length;
+
+  const loadPostulaciones = async () => {
+    try {
+      setLoadingPostulaciones(true);
+      const data = await postulacionService.getAll();
+      setPostulaciones(data);
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudieron cargar las postulaciones.",
+        "error"
+      );
+    } finally {
+      setLoadingPostulaciones(false);
+    }
   };
 
-  const rejectApplication = (applicationId) => {
-    updateApplicationStatus(applicationId, "RECHAZADO_RRHH");
+  const loadLogs = async () => {
+    try {
+      setLoadingLogs(true);
+      const data = await logService.getLatest();
+      const applicationLogs = data
+        .filter((log) => log.modulo === "POSTULACIONES")
+        .slice(0, 5);
+      setLogs(applicationLogs);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const refreshData = async () => {
+    await Promise.all([loadPostulaciones(), loadLogs()]);
+  };
+
+  useEffect(() => {
+    refreshData();
+  }, []);
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4000);
+  };
+
+  const handleCommentChange = (postulacionId, value) => {
+    setReviewComments((prev) => ({
+      ...prev,
+      [postulacionId]: value,
+    }));
+  };
+
+  const handleReview = async (postulacion, approved) => {
+    const comentario = reviewComments[postulacion.id] || "";
+
+    if (!comentario.trim()) {
+      showMessage("Agrega un comentario de revisión antes de continuar.", "error");
+      return;
+    }
+
+    try {
+      await postulacionService.revisarRrhh(postulacion.id, {
+        aprobado: approved,
+        comentarioRrhh: comentario.trim(),
+      });
+
+      showMessage(
+        approved
+          ? "Postulación aprobada por RRHH."
+          : "Postulación rechazada por RRHH.",
+        "success"
+      );
+
+      await refreshData();
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudo revisar la postulación.",
+        "error"
+      );
+    }
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return "Sin fecha";
+
+    return new Date(value).toLocaleString("es-PE", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  };
+
+  const statusClass = (status) => {
+    const styles = {
+      POSTULADO: "bg-sky-50 text-sky-700 border-sky-200",
+      EN_REVISION_RRHH: "bg-amber-50 text-amber-700 border-amber-200",
+      APROBADO_RRHH: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      RECHAZADO_RRHH: "bg-rose-50 text-rose-700 border-rose-200",
+      EVALUACION_PENDIENTE: "bg-indigo-50 text-indigo-700 border-indigo-200",
+      EVALUACION_COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
+      APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
+      SELECCIONADO: "bg-emerald-100 text-emerald-800 border-emerald-300",
+      NO_SELECCIONADO: "bg-slate-50 text-slate-600 border-slate-200",
+    };
+
+    return styles[status] || "bg-slate-50 text-slate-600 border-slate-200";
+  };
+
+  const statusIcon = (status) => {
+    if (status?.includes("RECHAZADO")) return <XCircle size={18} />;
+    if (status?.includes("APROBADO") || status === "SELECCIONADO") {
+      return <CheckCircle2 size={18} />;
+    }
+    return <Clock size={18} />;
+  };
+
+  const canReview = (status) => {
+    return status === "POSTULADO" || status === "EN_REVISION_RRHH";
+  };
+
+  const alertStyles = {
+    info: "bg-sky-50 border-sky-200 text-sky-700",
+    success: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    error: "bg-rose-50 border-rose-200 text-rose-700",
   };
 
   return (
     <div>
       <SectionHeader
         title="Postulaciones recibidas"
-        description="Revisa perfiles, CVs y habilidades declaradas para decidir si avanzan a evaluación técnica."
+        description="Revisa postulantes, valida requisitos y decide si pasan a evaluación técnica."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
-        <div className="bg-white/95 border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">Total</p>
-          <p className="text-4xl font-black text-slate-900 mt-2">
-            {applications.length}
-          </p>
+      {message && (
+        <div
+          className={`mb-5 border rounded-3xl px-5 py-4 font-semibold ${alertStyles[messageType]}`}
+        >
+          {message}
         </div>
+      )}
 
-        <div className="bg-white/95 border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">Postulados</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+          <p className="text-sm text-slate-500 font-semibold">Pendientes</p>
           <p className="text-4xl font-black text-sky-600 mt-2">
-            {applications.filter((item) => item.status === "POSTULADO").length}
+            {pendingCount}
           </p>
         </div>
 
-        <div className="bg-white/95 border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">Aprobados</p>
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+          <p className="text-sm text-slate-500 font-semibold">Aprobadas RRHH</p>
           <p className="text-4xl font-black text-emerald-600 mt-2">
-            {
-              applications.filter((item) => item.status === "APROBADO_RRHH")
-                .length
-            }
+            {approvedCount}
           </p>
         </div>
 
-        <div className="bg-white/95 border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">Resultados</p>
-          <p className="text-4xl font-black text-violet-600 mt-2">
-            {filteredApplications.length}
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+          <p className="text-sm text-slate-500 font-semibold">Rechazadas</p>
+          <p className="text-4xl font-black text-rose-600 mt-2">
+            {rejectedCount}
           </p>
         </div>
       </div>
 
-      <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] p-5 mb-8 grid grid-cols-1 md:grid-cols-3 gap-4 shadow-sm">
-        <div className="md:col-span-2 flex items-center gap-3 border border-slate-300 rounded-2xl px-4 py-3 bg-white focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100">
+      <div className="bg-white border border-slate-200 rounded-[2rem] p-5 mb-8 grid grid-cols-1 md:grid-cols-[1fr_260px_auto] gap-4 shadow-sm">
+        <div className="flex items-center gap-3 border border-slate-300 rounded-2xl px-4 py-3 bg-white focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100">
           <Search size={18} className="text-emerald-600" />
           <input
             type="text"
-            placeholder="Buscar por candidato, vacante o área..."
+            placeholder="Buscar por postulante, correo, vacante o área..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full outline-none bg-transparent text-slate-900"
@@ -102,58 +246,62 @@ function RrhhApplications() {
           <option value="APROBADO_RRHH">Aprobado RRHH</option>
           <option value="RECHAZADO_RRHH">Rechazado RRHH</option>
           <option value="EVALUACION_PENDIENTE">Evaluación pendiente</option>
-          <option value="EVALUACION_COMPLETADA">Evaluación completada</option>
-          <option value="APROBADO_TECNICO">Aprobado técnico</option>
-          <option value="RECHAZADO_TECNICO">Rechazado técnico</option>
         </select>
+
+        <button
+          onClick={refreshData}
+          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-2xl font-black"
+        >
+          <RefreshCw size={18} />
+          Actualizar
+        </button>
       </div>
 
-      {filteredApplications.length === 0 ? (
-        <div className="bg-white/95 border border-slate-200 rounded-[2rem] p-10 text-center shadow-sm">
+      {loadingPostulaciones ? (
+        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center">
           <h2 className="text-2xl font-black text-slate-900">
-            No se encontraron postulaciones
+            Cargando postulaciones...
           </h2>
-          <p className="text-slate-500 mt-2">
-            Cambia los filtros para ver otros resultados.
-          </p>
+        </div>
+      ) : filteredPostulaciones.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center">
+          <h2 className="text-2xl font-black text-slate-900">
+            No hay postulaciones para mostrar
+          </h2>
         </div>
       ) : (
-        <div className="space-y-5">
-          {filteredApplications.map((application) => (
+        <div className="space-y-6">
+          {filteredPostulaciones.map((postulacion) => (
             <article
-              key={application.id}
-              className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-[2rem] p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all"
+              key={postulacion.id}
+              className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm"
             >
-              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-                <div className="flex items-start gap-4">
-                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-emerald-100 to-sky-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <UserRound size={25} />
-                  </div>
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900">
+                    {postulacion.postulanteNombre}
+                  </h3>
+                  <p className="text-slate-500 mt-1">
+                    {postulacion.postulanteCorreo}
+                  </p>
 
-                  <div>
-                    <p className="inline-flex px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-black mb-2">
-                      {application.area}
-                    </p>
-
-                    <h3 className="text-2xl font-black text-slate-900">
-                      {application.candidate}
-                    </h3>
-
-                    <p className="text-slate-500 mt-1">
-                      Postula a:{" "}
-                      <span className="font-bold text-slate-700">
-                        {application.jobTitle}
-                      </span>
-                    </p>
-
-                    <p className="text-sm text-slate-500 mt-2 flex items-center gap-2">
-                      <Calendar size={16} className="text-emerald-600" />
-                      Fecha de postulación: {application.appliedAt}
-                    </p>
-                  </div>
+                  <p className="text-slate-700 font-bold mt-4">
+                    {postulacion.vacanteTitulo}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Área: {postulacion.areaNombre} · Postuló:{" "}
+                    {formatDateTime(postulacion.fechaPostulacion)}
+                  </p>
                 </div>
 
-                <StatusBadge status={application.status} />
+                <span
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-black ${statusClass(
+                    postulacion.estado
+                  )}`}
+                >
+                  {statusIcon(postulacion.estado)}
+                  {postulacion.estado}
+                </span>
               </div>
 
               <div className="mt-6">
@@ -162,50 +310,103 @@ function RrhhApplications() {
                 </h4>
 
                 <div className="flex flex-wrap gap-2">
-                  {application.skills.map((skill) => (
+                  {postulacion.habilidades?.map((item) => (
                     <span
-                      key={`${application.id}-${skill.name}`}
-                      className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200"
+                      key={item.id}
+                      className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold"
                     >
-                      {skill.name} · {skill.level} · {skill.years} año(s)
+                      {item.habilidadNombre} · {item.nivelPostulante} ·{" "}
+                      {item.aniosExperiencia || 0} año(s)
                     </span>
                   ))}
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <a
-                  href={application.cvUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 text-emerald-600 font-black"
-                >
-                  <FileText size={18} />
-                  Ver CV del postulante
-                </a>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={() => approveApplication(application.id)}
-                    className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl font-black shadow-lg shadow-emerald-500/20"
-                  >
-                    <CheckCircle2 size={18} />
-                    Aprobar
-                  </button>
-
-                  <button
-                    onClick={() => rejectApplication(application.id)}
-                    className="inline-flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-2xl font-black shadow-lg shadow-rose-500/20"
-                  >
-                    <XCircle size={18} />
-                    Rechazar
-                  </button>
+              {postulacion.comentarioRrhh && (
+                <div className="mt-6 rounded-3xl bg-slate-50 border border-slate-200 p-4">
+                  <p className="font-black text-slate-900">
+                    Comentario de RRHH
+                  </p>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {postulacion.comentarioRrhh}
+                  </p>
                 </div>
-              </div>
+              )}
+
+              {canReview(postulacion.estado) && (
+                <div className="mt-6 rounded-3xl bg-slate-50 border border-slate-200 p-4">
+                  <label className="block text-sm font-black text-slate-700 mb-2">
+                    Comentario de revisión
+                  </label>
+
+                  <textarea
+                    value={reviewComments[postulacion.id] || ""}
+                    onChange={(e) =>
+                      handleCommentChange(postulacion.id, e.target.value)
+                    }
+                    placeholder="Ej: Cumple con los requisitos mínimos y puede pasar a evaluación técnica."
+                    className="w-full min-h-24 border border-slate-300 rounded-2xl p-4 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  />
+
+                  <div className="flex flex-col md:flex-row gap-3 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => handleReview(postulacion, true)}
+                      className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-5 py-3 rounded-2xl font-black"
+                    >
+                      <UserCheck size={18} />
+                      Aprobar para evaluación
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleReview(postulacion, false)}
+                      className="inline-flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-5 py-3 rounded-2xl font-black"
+                    >
+                      <UserX size={18} />
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
+              )}
             </article>
           ))}
         </div>
       )}
+
+      <section className="mt-8 bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm">
+        <h2 className="text-xl font-black text-slate-900">
+          Logs recientes de postulaciones
+        </h2>
+
+        {loadingLogs ? (
+          <p className="text-slate-500 mt-3">Cargando logs...</p>
+        ) : logs.length === 0 ? (
+          <p className="text-slate-500 mt-3">
+            No hay logs recientes de postulaciones.
+          </p>
+        ) : (
+          <div className="space-y-3 mt-5">
+            {logs.map((log) => (
+              <div
+                key={log.id}
+                className="rounded-2xl bg-slate-50 border border-slate-200 p-4"
+              >
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <p className="font-black text-slate-900">{log.accion}</p>
+                  <span className="text-xs text-slate-400">
+                    {formatDateTime(log.fechaHora)}
+                  </span>
+                </div>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  {log.descripcion}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
