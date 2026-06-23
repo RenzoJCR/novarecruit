@@ -122,6 +122,29 @@ public class EvaluacionService {
         );
     }
 
+    @Transactional
+    public EvaluacionResponse reactivarEvaluacion(Long id) {
+        Evaluacion evaluacion = buscarEvaluacionPorId(id);
+
+        if ("ACTIVA".equals(evaluacion.getEstado())) {
+            throw new BusinessException("La evaluación ya se encuentra activa.");
+        }
+
+        evaluacion.setEstado("ACTIVA");
+
+        Evaluacion evaluacionActualizada = evaluacionRepository.save(evaluacion);
+
+        logSistemaService.registrarLog(
+                evaluacionActualizada.getTecnico().getId(),
+                "REACTIVAR_EVALUACION",
+                "EVALUACIONES",
+                "Se reactivó la evaluación: " + evaluacionActualizada.getTitulo(),
+                "127.0.0.1"
+        );
+
+        return mapToResponse(evaluacionActualizada);
+    }
+
     public Evaluacion buscarEvaluacionPorId(Long id) {
         return evaluacionRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("No se encontró la evaluación solicitada."));

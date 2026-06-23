@@ -7,8 +7,13 @@ export const areaService = {
   },
 
   async getActive() {
-    const data = await this.getAll();
-    return data.filter((area) => area.estado === true);
+    const response = await api.get("/areas/activas");
+    return response.data;
+  },
+
+  async getById(id) {
+    const response = await api.get(`/areas/${id}`);
+    return response.data;
   },
 
   async create(areaData) {
@@ -23,5 +28,10 @@ export const areaService = {
 
   async deactivate(id) {
     await api.delete(`/areas/${id}`);
+  },
+
+  async reactivate(id) {
+    const response = await api.patch(`/areas/${id}/reactivar`);
+    return response.data;
   },
 };

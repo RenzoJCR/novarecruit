@@ -4,6 +4,7 @@ import {
   Edit,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   Trash2,
@@ -29,9 +30,19 @@ function AdminAreas() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState(null);
+  const [reactivatingId, setReactivatingId] = useState(null);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4000);
+  };
 
   const loadAreas = async () => {
     try {
@@ -39,7 +50,10 @@ function AdminAreas() {
       const data = await areaService.getAll();
       setAreas(data);
     } catch (error) {
-      showMessage(error.userMessage || "No se pudieron cargar las áreas.", "error");
+      showMessage(
+        error.userMessage || "No se pudieron cargar las áreas.",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -71,15 +85,6 @@ function AdminAreas() {
 
   const totalActivas = areas.filter((item) => item.estado === true).length;
   const totalInactivas = areas.filter((item) => item.estado === false).length;
-
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4000);
-  };
 
   const resetForm = () => {
     setForm(initialForm);
@@ -162,14 +167,42 @@ function AdminAreas() {
 
     try {
       setDeactivatingId(area.id);
+
       await areaService.deactivate(area.id);
 
       showMessage("Área desactivada correctamente.", "success");
       await loadAreas();
     } catch (error) {
-      showMessage(error.userMessage || "No se pudo desactivar el área.", "error");
+      showMessage(
+        error.userMessage || "No se pudo desactivar el área.",
+        "error"
+      );
     } finally {
       setDeactivatingId(null);
+    }
+  };
+
+  const handleReactivate = async (area) => {
+    const confirmed = window.confirm(
+      `¿Deseas reactivar el área "${area.nombre}"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setReactivatingId(area.id);
+
+      await areaService.reactivate(area.id);
+
+      showMessage("Área reactivada correctamente.", "success");
+      await loadAreas();
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudo reactivar el área.",
+        "error"
+      );
+    } finally {
+      setReactivatingId(null);
     }
   };
 
@@ -279,7 +312,7 @@ function AdminAreas() {
             </div>
           ) : (
             <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-              <div className="hidden lg:grid grid-cols-[1.2fr_1.5fr_0.7fr_170px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+              <div className="hidden lg:grid grid-cols-[1.2fr_1.4fr_0.7fr_220px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
                 <span>Área</span>
                 <span>Descripción</span>
                 <span>Estado</span>
@@ -290,7 +323,7 @@ function AdminAreas() {
                 {filteredAreas.map((area) => (
                   <div
                     key={area.id}
-                    className="grid grid-cols-1 lg:grid-cols-[1.2fr_1.5fr_0.7fr_170px] gap-4 px-5 py-4 items-center"
+                    className="grid grid-cols-1 lg:grid-cols-[1.2fr_1.4fr_0.7fr_220px] gap-4 px-5 py-4 items-center"
                   >
                     <div>
                       <p className="font-black text-slate-900">
@@ -316,7 +349,7 @@ function AdminAreas() {
                       </span>
                     </div>
 
-                    <div className="flex justify-start lg:justify-end gap-2">
+                    <div className="flex flex-wrap justify-start lg:justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => openEdit(area)}
@@ -335,6 +368,18 @@ function AdminAreas() {
                         >
                           <Trash2 size={16} />
                           Desactivar
+                        </button>
+                      )}
+
+                      {!area.estado && (
+                        <button
+                          type="button"
+                          disabled={reactivatingId === area.id}
+                          onClick={() => handleReactivate(area)}
+                          className="inline-flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:bg-slate-100 text-emerald-700 disabled:text-slate-500 px-3 py-2 rounded-xl text-sm font-bold"
+                        >
+                          <RotateCcw size={16} />
+                          Reactivar
                         </button>
                       )}
                     </div>

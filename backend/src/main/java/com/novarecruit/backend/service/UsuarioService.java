@@ -9,6 +9,7 @@ import com.novarecruit.backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -21,6 +22,7 @@ public class UsuarioService {
     private final LogSistemaService logSistemaService;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional(readOnly = true)
     public List<UsuarioResponse> listarUsuarios() {
         return usuarioRepository.findAllByOrderByIdAsc()
                 .stream()
@@ -28,11 +30,13 @@ public class UsuarioService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public UsuarioResponse obtenerUsuarioPorId(Long id) {
         Usuario usuario = buscarUsuarioPorId(id);
         return mapToResponse(usuario);
     }
 
+    @Transactional
     public UsuarioResponse crearUsuario(UsuarioRequest request) {
         String correoNormalizado = normalizarCorreo(request.getCorreo());
 
@@ -68,6 +72,7 @@ public class UsuarioService {
         return mapToResponse(usuarioGuardado);
     }
 
+    @Transactional
     public UsuarioResponse actualizarUsuario(Long id, UsuarioRequest request) {
         Usuario usuario = buscarUsuarioPorId(id);
 
@@ -106,6 +111,7 @@ public class UsuarioService {
         return mapToResponse(usuarioActualizado);
     }
 
+    @Transactional
     public void desactivarUsuario(Long id) {
         Usuario usuario = buscarUsuarioPorId(id);
 
@@ -123,6 +129,29 @@ public class UsuarioService {
                 "Se desactivó el usuario: " + usuario.getCorreo(),
                 "127.0.0.1"
         );
+    }
+
+    @Transactional
+    public UsuarioResponse reactivarUsuario(Long id) {
+        Usuario usuario = buscarUsuarioPorId(id);
+
+        if (Boolean.TRUE.equals(usuario.getEstado())) {
+            throw new BusinessException("El usuario ya se encuentra activo.");
+        }
+
+        usuario.setEstado(true);
+
+        Usuario usuarioActualizado = usuarioRepository.save(usuario);
+
+        logSistemaService.registrarLog(
+                null,
+                "REACTIVAR_USUARIO",
+                "USUARIOS",
+                "Se reactivó el usuario: " + usuarioActualizado.getCorreo(),
+                "127.0.0.1"
+        );
+
+        return mapToResponse(usuarioActualizado);
     }
 
     private Usuario buscarUsuarioPorId(Long id) {

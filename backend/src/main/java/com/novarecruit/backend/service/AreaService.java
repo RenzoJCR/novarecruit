@@ -7,6 +7,7 @@ import com.novarecruit.backend.exception.BusinessException;
 import com.novarecruit.backend.repository.AreaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,6 +18,7 @@ public class AreaService {
     private final AreaRepository areaRepository;
     private final LogSistemaService logSistemaService;
 
+    @Transactional(readOnly = true)
     public List<AreaResponse> listarAreas() {
         return areaRepository.findAllByOrderByIdAsc()
                 .stream()
@@ -24,6 +26,7 @@ public class AreaService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<AreaResponse> listarAreasActivas() {
         return areaRepository.findByEstadoTrueOrderByNombreAsc()
                 .stream()
@@ -31,11 +34,13 @@ public class AreaService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public AreaResponse obtenerAreaPorId(Long id) {
         Area area = buscarAreaPorId(id);
         return mapToResponse(area);
     }
 
+    @Transactional
     public AreaResponse crearArea(AreaRequest request) {
         String nombreNormalizado = normalizarTexto(request.getNombre());
         String descripcionNormalizada = normalizarTexto(request.getDescripcion());
@@ -63,6 +68,7 @@ public class AreaService {
         return mapToResponse(areaGuardada);
     }
 
+    @Transactional
     public AreaResponse actualizarArea(Long id, AreaRequest request) {
         Area area = buscarAreaPorId(id);
 
@@ -93,6 +99,7 @@ public class AreaService {
         return mapToResponse(areaActualizada);
     }
 
+    @Transactional
     public void desactivarArea(Long id) {
         Area area = buscarAreaPorId(id);
 
@@ -110,6 +117,29 @@ public class AreaService {
                 "Se desactivó el área: " + area.getNombre(),
                 "127.0.0.1"
         );
+    }
+
+    @Transactional
+    public AreaResponse reactivarArea(Long id) {
+        Area area = buscarAreaPorId(id);
+
+        if (Boolean.TRUE.equals(area.getEstado())) {
+            throw new BusinessException("El área ya se encuentra activa.");
+        }
+
+        area.setEstado(true);
+
+        Area areaActualizada = areaRepository.save(area);
+
+        logSistemaService.registrarLog(
+                null,
+                "REACTIVAR_AREA",
+                "AREAS",
+                "Se reactivó el área: " + areaActualizada.getNombre(),
+                "127.0.0.1"
+        );
+
+        return mapToResponse(areaActualizada);
     }
 
     private Area buscarAreaPorId(Long id) {

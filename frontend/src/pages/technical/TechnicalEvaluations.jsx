@@ -7,6 +7,7 @@ import {
   FileQuestion,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   X,
@@ -26,9 +27,19 @@ function TechnicalEvaluations() {
 
   const [loading, setLoading] = useState(true);
   const [deactivatingId, setDeactivatingId] = useState(null);
+  const [reactivatingId, setReactivatingId] = useState(null);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4000);
+  };
 
   const loadEvaluaciones = async () => {
     try {
@@ -83,15 +94,6 @@ function TechnicalEvaluations() {
     0
   );
 
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4000);
-  };
-
   const handleDeactivate = async (evaluacion) => {
     const confirmed = window.confirm(
       `¿Deseas desactivar la evaluación "${evaluacion.titulo}"?`
@@ -112,6 +114,29 @@ function TechnicalEvaluations() {
       );
     } finally {
       setDeactivatingId(null);
+    }
+  };
+
+  const handleReactivate = async (evaluacion) => {
+    const confirmed = window.confirm(
+      `¿Deseas reactivar la evaluación "${evaluacion.titulo}"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setReactivatingId(evaluacion.id);
+      await evaluacionService.reactivate(evaluacion.id);
+
+      showMessage("Evaluación reactivada correctamente.", "success");
+      await loadEvaluaciones();
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudo reactivar la evaluación.",
+        "error"
+      );
+    } finally {
+      setReactivatingId(null);
     }
   };
 
@@ -248,7 +273,7 @@ function TechnicalEvaluations() {
         </div>
       ) : (
         <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="hidden lg:grid grid-cols-[1.4fr_1.2fr_0.7fr_0.7fr_180px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+          <div className="hidden lg:grid grid-cols-[1.4fr_1.2fr_0.7fr_0.7fr_230px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
             <span>Evaluación</span>
             <span>Vacante</span>
             <span>Preguntas</span>
@@ -260,7 +285,7 @@ function TechnicalEvaluations() {
             {filteredEvaluaciones.map((evaluacion) => (
               <div
                 key={evaluacion.id}
-                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.2fr_0.7fr_0.7fr_180px] gap-4 px-5 py-4 items-center"
+                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.2fr_0.7fr_0.7fr_230px] gap-4 px-5 py-4 items-center"
               >
                 <div>
                   <p className="font-black text-slate-900">
@@ -317,6 +342,18 @@ function TechnicalEvaluations() {
                     >
                       <Trash2 size={16} />
                       Desactivar
+                    </button>
+                  )}
+
+                  {evaluacion.estado === "INACTIVA" && (
+                    <button
+                      type="button"
+                      disabled={reactivatingId === evaluacion.id}
+                      onClick={() => handleReactivate(evaluacion)}
+                      className="inline-flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:bg-slate-100 text-emerald-700 disabled:text-slate-500 px-3 py-2 rounded-xl text-sm font-bold"
+                    >
+                      <RotateCcw size={16} />
+                      Reactivar
                     </button>
                   )}
                 </div>

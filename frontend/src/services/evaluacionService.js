@@ -11,13 +11,13 @@ export const evaluacionService = {
     return response.data;
   },
 
-  async getByVacante(vacanteId) {
-    const response = await api.get(`/evaluaciones/vacante/${vacanteId}`);
+  async getById(id) {
+    const response = await api.get(`/evaluaciones/${id}`);
     return response.data;
   },
 
-  async getById(id) {
-    const response = await api.get(`/evaluaciones/${id}`);
+  async getByVacante(vacanteId) {
+    const response = await api.get(`/evaluaciones/vacante/${vacanteId}`);
     return response.data;
   },
 
@@ -28,5 +28,10 @@ export const evaluacionService = {
 
   async deactivate(id) {
     await api.delete(`/evaluaciones/${id}`);
+  },
+
+  async reactivate(id) {
+    const response = await api.patch(`/evaluaciones/${id}/reactivar`);
+    return response.data;
   },
 };

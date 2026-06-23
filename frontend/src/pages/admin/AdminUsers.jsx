@@ -76,6 +76,7 @@ function AdminUsers() {
 
   const [loading, setLoading] = useState(true);
   const [deactivatingId, setDeactivatingId] = useState(null);
+  const [reactivatingId, setReactivatingId] = useState(null);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
@@ -184,9 +185,38 @@ function AdminUsers() {
     }
   };
 
+  const handleReactivate = async (usuario) => {
+    const confirmed = window.confirm(
+      `¿Deseas reactivar al usuario "${getNombreCompleto(usuario)}"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setReactivatingId(usuario.id);
+
+      await userService.reactivate(usuario.id);
+
+      showMessage("Usuario reactivado correctamente.", "success");
+      await loadUsuarios();
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudo reactivar el usuario.",
+        "error"
+      );
+    } finally {
+      setReactivatingId(null);
+    }
+  };
+
   const canDeactivate = (usuario) => {
     const estado = getEstadoValue(usuario);
     return estado === true || estado === "ACTIVO";
+  };
+
+  const canReactivate = (usuario) => {
+    const estado = getEstadoValue(usuario);
+    return estado === false || estado === "INACTIVO";
   };
 
   const alertStyles = {
@@ -314,7 +344,7 @@ function AdminUsers() {
         </div>
       ) : (
         <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="hidden lg:grid grid-cols-[1.3fr_1fr_0.8fr_0.7fr_170px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+          <div className="hidden lg:grid grid-cols-[1.3fr_1fr_0.8fr_0.7fr_220px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
             <span>Usuario</span>
             <span>Correo</span>
             <span>Rol</span>
@@ -330,7 +360,7 @@ function AdminUsers() {
               return (
                 <div
                   key={usuario.id}
-                  className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_0.8fr_0.7fr_170px] gap-4 px-5 py-4 items-center"
+                  className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_0.8fr_0.7fr_220px] gap-4 px-5 py-4 items-center"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 flex items-center justify-center font-black shrink-0">
@@ -373,7 +403,7 @@ function AdminUsers() {
                     </span>
                   </div>
 
-                  <div className="flex justify-start lg:justify-end gap-2">
+                  <div className="flex flex-wrap justify-start lg:justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setSelectedUser(usuario)}
@@ -392,6 +422,18 @@ function AdminUsers() {
                       >
                         <Trash2 size={16} />
                         Inhabilitar
+                      </button>
+                    )}
+
+                    {canReactivate(usuario) && (
+                      <button
+                        type="button"
+                        disabled={reactivatingId === usuario.id}
+                        onClick={() => handleReactivate(usuario)}
+                        className="inline-flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:bg-slate-100 text-emerald-700 disabled:text-slate-500 px-3 py-2 rounded-xl text-sm font-bold"
+                      >
+                        <ShieldCheck size={16} />
+                        Reactivar
                       </button>
                     )}
                   </div>
@@ -500,7 +542,7 @@ function AdminUsers() {
                   />
                   <p className="text-sm text-slate-600">
                     Los usuarios no se eliminan definitivamente; se inhabilitan
-                    para mantener trazabilidad del sistema.
+                    y pueden reactivarse para mantener la trazabilidad del sistema.
                   </p>
                 </div>
               </section>

@@ -49,4 +49,9 @@ public class EvaluacionController {
     public void desactivarEvaluacion(@PathVariable Long id) {
         evaluacionService.desactivarEvaluacion(id);
     }
+
+    @PatchMapping("/{id}/reactivar")
+    public EvaluacionResponse reactivarEvaluacion(@PathVariable Long id) {
+        return evaluacionService.reactivarEvaluacion(id);
+    }
 }

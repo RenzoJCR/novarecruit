@@ -52,4 +52,9 @@ public class AreaController {
     public void desactivarArea(@PathVariable Long id) {
         areaService.desactivarArea(id);
     }
+
+    @PatchMapping("/{id}/reactivar")
+    public AreaResponse reactivarArea(@PathVariable Long id) {
+        return areaService.reactivarArea(id);
+    }
 }
