@@ -11,13 +11,13 @@ export const userService = {
     return response.data;
   },
 
-  async create(userData) {
-    const response = await api.post("/usuarios", userData);
+  async create(usuarioData) {
+    const response = await api.post("/usuarios", usuarioData);
     return response.data;
   },
 
-  async update(id, userData) {
-    const response = await api.put(`/usuarios/${id}`, userData);
+  async update(id, usuarioData) {
+    const response = await api.put(`/usuarios/${id}`, usuarioData);
     return response.data;
   },
 
