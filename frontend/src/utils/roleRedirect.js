@@ -1,6 +1,6 @@
 export function getHomeByRole(roleName) {
   const routes = {
-    ADMINISTRADOR: "/admin/dashboard",
+    ADMINISTRADOR: "/admin/usuarios",
     RECURSOS_HUMANOS: "/rrhh/vacantes",
     LIDER_TECNICO: "/technical/vacantes",
     POSTULANTE: "/applicant/vacantes",

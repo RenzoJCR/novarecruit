@@ -5,11 +5,9 @@ import {
   Briefcase,
   ClipboardList,
   FileBarChart,
-  Home,
   Layers,
   LogOut,
   Menu,
-  Settings,
   ShieldCheck,
   UserCog,
   UserRound,
@@ -31,13 +29,35 @@ const roleLabels = {
   POSTULANTE: "Postulante",
 };
 
+const roleStyles = {
+  ADMINISTRADOR: {
+    avatar: "bg-rose-600 text-white",
+    badge: "bg-rose-50 text-rose-700 border-rose-200",
+    active: "bg-rose-600 text-white",
+    hover: "hover:bg-rose-50 hover:text-rose-700",
+  },
+  RECURSOS_HUMANOS: {
+    avatar: "bg-amber-600 text-white",
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
+    active: "bg-amber-600 text-white",
+    hover: "hover:bg-amber-50 hover:text-amber-700",
+  },
+  LIDER_TECNICO: {
+    avatar: "bg-emerald-600 text-white",
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    active: "bg-emerald-600 text-white",
+    hover: "hover:bg-emerald-50 hover:text-emerald-700",
+  },
+  POSTULANTE: {
+    avatar: "bg-sky-600 text-white",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
+    active: "bg-sky-600 text-white",
+    hover: "hover:bg-sky-50 hover:text-sky-700",
+  },
+};
+
 const menuByRole = {
   POSTULANTE: [
-    {
-      label: "Dashboard",
-      path: "/applicant/dashboard",
-      icon: Home,
-    },
     {
       label: "Vacantes",
       path: "/applicant/vacantes",
@@ -49,7 +69,7 @@ const menuByRole = {
       icon: ClipboardList,
     },
     {
-      label: "Evaluaciones",
+      label: "Mis evaluaciones",
       path: "/applicant/evaluaciones",
       icon: BookOpenCheck,
     },
@@ -67,11 +87,6 @@ const menuByRole = {
 
   RECURSOS_HUMANOS: [
     {
-      label: "Dashboard",
-      path: "/rrhh/dashboard",
-      icon: Home,
-    },
-    {
       label: "Vacantes",
       path: "/rrhh/vacantes",
       icon: Briefcase,
@@ -86,24 +101,9 @@ const menuByRole = {
       path: "/rrhh/postulaciones",
       icon: ClipboardList,
     },
-    {
-      label: "Candidatos",
-      path: "/rrhh/candidatos",
-      icon: Users,
-    },
-    {
-      label: "Entrevistas",
-      path: "/rrhh/entrevistas",
-      icon: Bell,
-    },
   ],
 
   LIDER_TECNICO: [
-    {
-      label: "Dashboard",
-      path: "/technical/dashboard",
-      icon: Home,
-    },
     {
       label: "Procesos técnicos",
       path: "/technical/vacantes",
@@ -128,11 +128,6 @@ const menuByRole = {
 
   ADMINISTRADOR: [
     {
-      label: "Dashboard",
-      path: "/admin/dashboard",
-      icon: Home,
-    },
-    {
       label: "Usuarios",
       path: "/admin/usuarios",
       icon: UserCog,
@@ -148,14 +143,9 @@ const menuByRole = {
       icon: Building2,
     },
     {
-      label: "Reportes",
+      label: "Logs del sistema",
       path: "/admin/reportes",
       icon: FileBarChart,
-    },
-    {
-      label: "Configuración",
-      path: "/admin/configuracion",
-      icon: Settings,
     },
   ],
 };
@@ -169,6 +159,7 @@ function DashboardLayout() {
 
   const roleName = currentUser?.rolNombre;
   const menuItems = menuByRole[roleName] || [];
+  const styles = roleStyles[roleName] || roleStyles.POSTULANTE;
 
   const handleLogout = () => {
     logout();
@@ -187,14 +178,16 @@ function DashboardLayout() {
     return currentItem?.label || "NovaRecruit";
   };
 
+  const userInitial =
+    currentUser?.nombreCompleto?.charAt(0)?.toUpperCase() || "U";
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      {/* Mobile topbar */}
-      <div className="lg:hidden sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+      <div className="lg:hidden sticky top-0 z-40 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
-          className="w-11 h-11 rounded-2xl border border-slate-200 flex items-center justify-center text-slate-700"
+          className="w-11 h-11 rounded-xl border border-slate-200 flex items-center justify-center text-slate-700"
         >
           <Menu size={22} />
         </button>
@@ -204,12 +197,13 @@ function DashboardLayout() {
           <p className="text-xs text-slate-500">{getPageTitle()}</p>
         </div>
 
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-sky-500 text-white flex items-center justify-center font-black">
-          {currentUser?.nombreCompleto?.charAt(0) || "U"}
+        <div
+          className={`w-11 h-11 rounded-xl flex items-center justify-center font-black ${styles.avatar}`}
+        >
+          {userInitial}
         </div>
       </div>
 
-      {/* Overlay mobile */}
       {sidebarOpen && (
         <button
           type="button"
@@ -219,23 +213,23 @@ function DashboardLayout() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 z-50 h-screen w-80 bg-white border-r border-slate-200 shadow-xl lg:shadow-none transform transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="h-full flex flex-col">
-          {/* Brand */}
-          <div className="p-6 border-b border-slate-100">
+          <div className="p-5 border-b border-slate-100">
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={handleGoHome}
                 className="flex items-center gap-3 text-left"
               >
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-sky-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                  <ShieldCheck size={25} />
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center ${styles.avatar}`}
+                >
+                  <ShieldCheck size={23} />
                 </div>
 
                 <div>
@@ -243,7 +237,7 @@ function DashboardLayout() {
                     NovaRecruit
                   </p>
                   <p className="text-xs font-bold text-slate-500">
-                    Sistema de reclutamiento
+                    Reclutamiento TI
                   </p>
                 </div>
               </button>
@@ -258,13 +252,13 @@ function DashboardLayout() {
             </div>
           </div>
 
-          {/* User card */}
-          <div className="px-6 py-5 border-b border-slate-100">
-            <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-sky-50 border border-emerald-100 p-4">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
               <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-white border border-emerald-100 text-emerald-700 flex items-center justify-center font-black shrink-0">
-                  {currentUser?.nombreCompleto?.charAt(0)?.toUpperCase() ||
-                    "U"}
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center font-black shrink-0 ${styles.avatar}`}
+                >
+                  {userInitial}
                 </div>
 
                 <div className="min-w-0">
@@ -276,7 +270,9 @@ function DashboardLayout() {
                     {currentUser?.correo || "correo no disponible"}
                   </p>
 
-                  <span className="inline-flex mt-2 px-3 py-1 rounded-full bg-white text-emerald-700 border border-emerald-100 text-xs font-black">
+                  <span
+                    className={`inline-flex mt-2 px-3 py-1 rounded-full border text-xs font-black ${styles.badge}`}
+                  >
                     {roleLabels[roleName] || roleName || "Rol no definido"}
                   </span>
                 </div>
@@ -284,15 +280,13 @@ function DashboardLayout() {
             </div>
           </div>
 
-          {/* Menu */}
           <nav className="flex-1 overflow-y-auto px-4 py-5">
             {menuItems.length === 0 ? (
-              <div className="rounded-3xl bg-rose-50 border border-rose-100 p-4 text-rose-700 text-sm font-semibold">
-                No hay opciones disponibles para este rol. Revisa que el usuario
-                tenga un rol válido.
+              <div className="rounded-2xl bg-rose-50 border border-rose-100 p-4 text-rose-700 text-sm font-semibold">
+                No hay opciones disponibles para este rol.
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {menuItems.map((item) => {
                   const Icon = item.icon;
 
@@ -302,10 +296,10 @@ function DashboardLayout() {
                       to={item.path}
                       onClick={() => setSidebarOpen(false)}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-4 py-3 rounded-2xl font-bold transition-all ${
+                        `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
                           isActive
-                            ? "bg-gradient-to-r from-emerald-500 to-sky-500 text-white shadow-lg shadow-emerald-500/20"
-                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                            ? styles.active
+                            : `text-slate-600 hover:bg-slate-50 ${styles.hover}`
                         }`
                       }
                     >
@@ -318,12 +312,11 @@ function DashboardLayout() {
             )}
           </nav>
 
-          {/* Footer actions */}
           <div className="p-4 border-t border-slate-100 space-y-2">
             <NavLink
               to="/change-password"
               onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             >
               <LockKeyhole size={20} />
               Cambiar contraseña
@@ -332,7 +325,7 @@ function DashboardLayout() {
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-rose-600 hover:bg-rose-50"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-rose-600 hover:bg-rose-50"
             >
               <LogOut size={20} />
               Cerrar sesión
@@ -341,9 +334,8 @@ function DashboardLayout() {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="lg:pl-80 min-h-screen">
-        <header className="hidden lg:flex sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200 px-8 py-4 items-center justify-between">
+        <header className="hidden lg:flex sticky top-0 z-30 bg-white border-b border-slate-200 px-8 py-4 items-center justify-between">
           <div>
             <p className="text-sm font-bold text-slate-500">Panel</p>
             <h1 className="text-2xl font-black text-slate-900">
@@ -361,8 +353,10 @@ function DashboardLayout() {
               </p>
             </div>
 
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-sky-500 text-white flex items-center justify-center font-black shadow-lg shadow-emerald-500/20">
-              {currentUser?.nombreCompleto?.charAt(0)?.toUpperCase() || "U"}
+            <div
+              className={`w-11 h-11 rounded-xl flex items-center justify-center font-black ${styles.avatar}`}
+            >
+              {userInitial}
             </div>
           </div>
         </header>

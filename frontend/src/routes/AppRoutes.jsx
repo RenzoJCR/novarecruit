@@ -13,7 +13,6 @@ import Register from "../pages/auth/Register.jsx";
 import VerifyEmail from "../pages/auth/VerifyEmail.jsx";
 import ChangePassword from "../pages/auth/ChangePassword.jsx";
 
-import ApplicantDashboard from "../pages/applicant/ApplicantDashboard.jsx";
 import ApplicantJobs from "../pages/applicant/ApplicantJobs.jsx";
 import ApplicantJobDetail from "../pages/applicant/ApplicantJobDetail.jsx";
 import ApplicantApplications from "../pages/applicant/ApplicantApplications.jsx";
@@ -22,26 +21,20 @@ import ApplicantEvaluationDetail from "../pages/applicant/ApplicantEvaluationDet
 import ApplicantNotifications from "../pages/applicant/ApplicantNotifications.jsx";
 import ApplicantProfile from "../pages/applicant/ApplicantProfile.jsx";
 
-import RrhhDashboard from "../pages/rrhh/RrhhDashboard.jsx";
 import RrhhJobs from "../pages/rrhh/RrhhJobs.jsx";
 import RrhhCreateJob from "../pages/rrhh/RrhhCreateJob.jsx";
 import RrhhApplications from "../pages/rrhh/RrhhApplications.jsx";
-import RrhhCandidates from "../pages/rrhh/RrhhCandidates.jsx";
-import RrhhInterviews from "../pages/rrhh/RrhhInterviews.jsx";
 
-import TechnicalDashboard from "../pages/technical/TechnicalDashboard.jsx";
 import TechnicalJobs from "../pages/technical/TechnicalJobs.jsx";
 import TechnicalJobDetail from "../pages/technical/TechnicalJobDetail.jsx";
 import TechnicalEvaluations from "../pages/technical/TechnicalEvaluations.jsx";
 import TechnicalCreateEvaluation from "../pages/technical/TechnicalCreateEvaluation.jsx";
 import TechnicalResults from "../pages/technical/TechnicalResults.jsx";
 
-import AdminDashboard from "../pages/admin/AdminDashboard.jsx";
 import AdminUsers from "../pages/admin/AdminUsers.jsx";
 import AdminCreateUser from "../pages/admin/AdminCreateUser.jsx";
 import AdminAreas from "../pages/admin/AdminAreas.jsx";
 import AdminReports from "../pages/admin/AdminReports.jsx";
-import AdminSettings from "../pages/admin/AdminSettings.jsx";
 
 function AppRoutes() {
   return (
@@ -74,9 +67,12 @@ function AppRoutes() {
       >
         <Route
           path="/applicant"
-          element={<Navigate to="/applicant/dashboard" replace />}
+          element={<Navigate to="/applicant/vacantes" replace />}
         />
-        <Route path="/applicant/dashboard" element={<ApplicantDashboard />} />
+        <Route
+          path="/applicant/dashboard"
+          element={<Navigate to="/applicant/vacantes" replace />}
+        />
         <Route path="/applicant/vacantes" element={<ApplicantJobs />} />
         <Route
           path="/applicant/vacantes/:id"
@@ -110,14 +106,23 @@ function AppRoutes() {
       >
         <Route
           path="/rrhh"
-          element={<Navigate to="/rrhh/dashboard" replace />}
+          element={<Navigate to="/rrhh/vacantes" replace />}
         />
-        <Route path="/rrhh/dashboard" element={<RrhhDashboard />} />
+        <Route
+          path="/rrhh/dashboard"
+          element={<Navigate to="/rrhh/vacantes" replace />}
+        />
         <Route path="/rrhh/vacantes" element={<RrhhJobs />} />
         <Route path="/rrhh/vacantes/create" element={<RrhhCreateJob />} />
         <Route path="/rrhh/postulaciones" element={<RrhhApplications />} />
-        <Route path="/rrhh/candidatos" element={<RrhhCandidates />} />
-        <Route path="/rrhh/entrevistas" element={<RrhhInterviews />} />
+        <Route
+          path="/rrhh/candidatos"
+          element={<Navigate to="/rrhh/postulaciones" replace />}
+        />
+        <Route
+          path="/rrhh/entrevistas"
+          element={<Navigate to="/rrhh/postulaciones" replace />}
+        />
       </Route>
 
       <Route
@@ -131,7 +136,10 @@ function AppRoutes() {
           path="/technical"
           element={<Navigate to="/technical/vacantes" replace />}
         />
-        <Route path="/technical/dashboard" element={<TechnicalDashboard />} />
+        <Route
+          path="/technical/dashboard"
+          element={<Navigate to="/technical/vacantes" replace />}
+        />
         <Route path="/technical/vacantes" element={<TechnicalJobs />} />
         <Route path="/technical/vacantes/:id" element={<TechnicalJobDetail />} />
         <Route
@@ -158,14 +166,20 @@ function AppRoutes() {
       >
         <Route
           path="/admin"
-          element={<Navigate to="/admin/dashboard" replace />}
+          element={<Navigate to="/admin/usuarios" replace />}
         />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route
+          path="/admin/dashboard"
+          element={<Navigate to="/admin/usuarios" replace />}
+        />
         <Route path="/admin/usuarios" element={<AdminUsers />} />
         <Route path="/admin/usuarios/create" element={<AdminCreateUser />} />
         <Route path="/admin/areas" element={<AdminAreas />} />
         <Route path="/admin/reportes" element={<AdminReports />} />
-        <Route path="/admin/configuracion" element={<AdminSettings />} />
+        <Route
+          path="/admin/configuracion"
+          element={<Navigate to="/admin/reportes" replace />}
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
