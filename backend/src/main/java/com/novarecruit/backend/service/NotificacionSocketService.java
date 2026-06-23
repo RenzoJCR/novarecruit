@@ -13,10 +13,13 @@ public class NotificacionSocketService {
     private final SimpMessagingTemplate messagingTemplate;
 
     /*
-     * Este método publica una notificación en tiempo real.
+     * Este método envía una notificación por WebSocket/STOMP.
      *
-     * El backend manda el mensaje al canal /topic/notificaciones.
-     * El frontend está suscrito a ese canal y filtra por usuarioId.
+     * Canal usado:
+     * /topic/notificaciones
+     *
+     * El frontend está suscrito a ese canal y filtra la notificación
+     * según el usuarioId del usuario autenticado.
      */
     public void emitirNotificacion(NotificacionResponse notificacion) {
         NotificacionSocketResponse response = NotificacionSocketResponse.builder()

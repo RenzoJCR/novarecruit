@@ -7,6 +7,8 @@ import com.novarecruit.backend.repository.NotificacionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
@@ -18,15 +20,16 @@ public class NotificacionService {
     private final NotificacionSocketService notificacionSocketService;
 
     /*
-     * Crea una notificación y la envía en tiempo real.
+     * Método central del sistema de notificaciones.
      *
-     * Flujo:
-     * 1. Guarda la notificación en la BD.
-     * 2. La convierte a DTO.
-     * 3. La emite por WebSocket/STOMP.
+     * Cada vez que otra parte del sistema llama a crearNotificacion:
      *
-     * Esto permite que la vista de notificaciones se actualice sola
-     * sin que el usuario tenga que presionar "Actualizar".
+     * 1. Se guarda la notificación en la tabla notificaciones.
+     * 2. Se convierte a DTO.
+     * 3. Después de confirmar la transacción en BD, se envía por WebSocket.
+     *
+     * Esto permite que el frontend actualice la vista de notificaciones
+     * en tiempo real y sin recargar manualmente.
      */
     @Transactional
     public NotificacionResponse crearNotificacion(
@@ -49,9 +52,33 @@ public class NotificacionService {
 
         NotificacionResponse response = mapToResponse(guardada);
 
-        notificacionSocketService.emitirNotificacion(response);
+        emitirDespuesDeGuardar(response);
 
         return response;
+    }
+
+    /*
+     * Este método evita un problema común:
+     *
+     * Si enviamos el WebSocket antes de que la transacción termine,
+     * el frontend puede recibir el aviso y consultar la lista demasiado rápido,
+     * cuando la notificación todavía no está confirmada en MySQL.
+     *
+     * Por eso esperamos al afterCommit.
+     */
+    private void emitirDespuesDeGuardar(NotificacionResponse response) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            notificacionSocketService.emitirNotificacion(response);
+                        }
+                    }
+            );
+        } else {
+            notificacionSocketService.emitirNotificacion(response);
+        }
     }
 
     @Transactional(readOnly = true)
