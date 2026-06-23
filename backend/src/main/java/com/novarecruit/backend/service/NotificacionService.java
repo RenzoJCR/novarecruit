@@ -6,6 +6,7 @@ import com.novarecruit.backend.exception.BusinessException;
 import com.novarecruit.backend.repository.NotificacionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -14,8 +15,27 @@ import java.util.List;
 public class NotificacionService {
 
     private final NotificacionRepository notificacionRepository;
+    private final NotificacionSocketService notificacionSocketService;
 
-    public void crearNotificacion(Long usuarioId, String titulo, String mensaje, String tipo, String urlDestino) {
+    /*
+     * Crea una notificación y la envía en tiempo real.
+     *
+     * Flujo:
+     * 1. Guarda la notificación en la BD.
+     * 2. La convierte a DTO.
+     * 3. La emite por WebSocket/STOMP.
+     *
+     * Esto permite que la vista de notificaciones se actualice sola
+     * sin que el usuario tenga que presionar "Actualizar".
+     */
+    @Transactional
+    public NotificacionResponse crearNotificacion(
+            Long usuarioId,
+            String titulo,
+            String mensaje,
+            String tipo,
+            String urlDestino
+    ) {
         Notificacion notificacion = Notificacion.builder()
                 .usuarioId(usuarioId)
                 .titulo(titulo)
@@ -25,9 +45,16 @@ public class NotificacionService {
                 .leido(false)
                 .build();
 
-        notificacionRepository.save(notificacion);
+        Notificacion guardada = notificacionRepository.save(notificacion);
+
+        NotificacionResponse response = mapToResponse(guardada);
+
+        notificacionSocketService.emitirNotificacion(response);
+
+        return response;
     }
 
+    @Transactional(readOnly = true)
     public List<NotificacionResponse> listarPorUsuario(Long usuarioId) {
         return notificacionRepository.findByUsuarioIdOrderByCreatedAtDesc(usuarioId)
                 .stream()
@@ -35,6 +62,7 @@ public class NotificacionService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<NotificacionResponse> listarNoLeidasPorUsuario(Long usuarioId) {
         return notificacionRepository.findByUsuarioIdAndLeidoFalseOrderByCreatedAtDesc(usuarioId)
                 .stream()
@@ -42,11 +70,13 @@ public class NotificacionService {
                 .toList();
     }
 
+    @Transactional
     public NotificacionResponse marcarComoLeida(Long id) {
         Notificacion notificacion = notificacionRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("No se encontró la notificación solicitada."));
 
         notificacion.setLeido(true);
+
         Notificacion actualizada = notificacionRepository.save(notificacion);
 
         return mapToResponse(actualizada);

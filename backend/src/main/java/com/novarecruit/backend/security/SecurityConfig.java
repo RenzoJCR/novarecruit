@@ -35,12 +35,9 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/ws", "/ws/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-
-                        // Por ahora mantenemos libre para no romper el flujo.
-                        // Luego protegemos endpoints por rol.
                         .requestMatchers("/api/**").permitAll()
-
                         .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

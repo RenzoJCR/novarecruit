@@ -17,10 +17,11 @@ import {
   Building2,
   Trophy,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAuth } from "../../context/AuthContext.jsx";
 import { getHomeByRole } from "../../utils/roleRedirect.js";
+import { websocketService } from "../../services/websocketService.js";
 
 const roleLabels = {
   ADMINISTRADOR: "Administrador",
@@ -157,9 +158,68 @@ function DashboardLayout() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  /*
+   * Estados para la notificación en tiempo real.
+   * realtimeNotification guarda el último mensaje recibido por WebSocket.
+   * notificationCount sirve para mostrar un contador simple en el panel.
+   */
+  const [realtimeNotification, setRealtimeNotification] = useState(null);
+  const [notificationCount, setNotificationCount] = useState(0);
+
   const roleName = currentUser?.rolNombre;
   const menuItems = menuByRole[roleName] || [];
   const styles = roleStyles[roleName] || roleStyles.POSTULANTE;
+
+  /*
+   * Aquí se conecta el frontend al WebSocket cuando hay un usuario autenticado.
+   *
+   * Explicación para exposición:
+   * - El backend publica notificaciones en /topic/notificaciones.
+   * - El frontend escucha ese canal.
+   * - Si el usuarioId del mensaje coincide con el usuario conectado, se muestra el aviso.
+   */
+  useEffect(() => {
+    if (!currentUser?.id) return undefined;
+
+  const client = websocketService.connectToNotifications(
+    currentUser.id,
+    (notification) => {
+      /*
+      * Cuando llega una notificación por WebSocket:
+      * 1. Mostramos el aviso flotante.
+      * 2. Aumentamos el contador visual.
+      * 3. Lanzamos un evento interno para que otras pantallas,
+      *    como Notificaciones, puedan actualizarse sin recargar.
+      */
+      setRealtimeNotification(notification);
+      setNotificationCount((prev) => prev + 1);
+
+      window.dispatchEvent(
+        new CustomEvent("novarecruit:notification-received", {
+          detail: notification,
+        })
+      );
+
+      setTimeout(() => {
+        setRealtimeNotification(null);
+      }, 6000);
+    }
+  );
+
+    return () => {
+      websocketService.disconnect(client);
+    };
+  }, [currentUser?.id]);
+
+  /*
+   * Si el postulante entra a su pantalla de notificaciones,
+   * limpiamos el contador visual.
+   */
+  useEffect(() => {
+    if (location.pathname === "/applicant/notificaciones") {
+      setNotificationCount(0);
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -168,6 +228,14 @@ function DashboardLayout() {
 
   const handleGoHome = () => {
     navigate(getHomeByRole(roleName), { replace: true });
+  };
+
+  const handleNotificationClick = () => {
+    if (roleName === "POSTULANTE") {
+      setNotificationCount(0);
+      setRealtimeNotification(null);
+      navigate("/applicant/notificaciones");
+    }
   };
 
   const getPageTitle = () => {
@@ -197,10 +265,26 @@ function DashboardLayout() {
           <p className="text-xs text-slate-500">{getPageTitle()}</p>
         </div>
 
-        <div
-          className={`w-11 h-11 rounded-xl flex items-center justify-center font-black ${styles.avatar}`}
-        >
-          {userInitial}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleNotificationClick}
+            className="relative w-11 h-11 rounded-xl border border-slate-200 flex items-center justify-center text-slate-700"
+          >
+            <Bell size={20} />
+
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black flex items-center justify-center">
+                {notificationCount}
+              </span>
+            )}
+          </button>
+
+          <div
+            className={`w-11 h-11 rounded-xl flex items-center justify-center font-black ${styles.avatar}`}
+          >
+            {userInitial}
+          </div>
         </div>
       </div>
 
@@ -343,7 +427,22 @@ function DashboardLayout() {
             </h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={handleNotificationClick}
+              className="relative w-11 h-11 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-700"
+              title="Notificaciones en tiempo real"
+            >
+              <Bell size={20} />
+
+              {notificationCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black flex items-center justify-center">
+                  {notificationCount}
+                </span>
+              )}
+            </button>
+
             <div className="text-right">
               <p className="font-black text-slate-900">
                 {currentUser?.nombreCompleto || "Usuario"}
@@ -365,6 +464,32 @@ function DashboardLayout() {
           <Outlet />
         </section>
       </main>
+
+      {realtimeNotification && (
+        <button
+          type="button"
+          onClick={handleNotificationClick}
+          className="fixed right-5 bottom-5 z-[60] w-[calc(100%-2.5rem)] sm:w-96 text-left bg-white border border-slate-200 shadow-xl rounded-2xl p-4 hover:bg-slate-50"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+              <Bell size={20} />
+            </div>
+
+            <div className="min-w-0">
+              <p className="font-black text-slate-900">
+                {realtimeNotification.titulo}
+              </p>
+              <p className="text-sm text-slate-600 mt-1">
+                {realtimeNotification.mensaje}
+              </p>
+              <p className="text-xs text-slate-400 mt-2">
+                Recibido en tiempo real por WebSocket/STOMP
+              </p>
+            </div>
+          </div>
+        </button>
+      )}
     </div>
   );
 }

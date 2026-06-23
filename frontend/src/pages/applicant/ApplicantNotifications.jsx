@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Bell,
   CheckCircle2,
@@ -37,34 +37,80 @@ function ApplicantNotifications() {
 
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const [message, setMessage] = useState("");
 
-  const loadNotifications = async () => {
-    if (!currentUser?.id) {
-      setMessage("No se encontró el usuario autenticado.");
-      setLoading(false);
-      return;
-    }
+  const loadNotifications = useCallback(
+    async (showLoading = true) => {
+      if (!currentUser?.id) {
+        setMessage("No se encontró el usuario autenticado.");
+        setLoading(false);
+        return;
+      }
 
-    try {
-      setLoading(true);
-      const data = await notificacionService.getByUsuario(currentUser.id);
-      setNotifications(data);
-    } catch (error) {
-      setMessage(error.userMessage || "No se pudieron cargar las notificaciones.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        if (showLoading) {
+          setLoading(true);
+        } else {
+          setUpdating(true);
+        }
+
+        const data = await notificacionService.getByUsuario(currentUser.id);
+        setNotifications(data);
+      } catch (error) {
+        setMessage(
+          error.userMessage || "No se pudieron cargar las notificaciones."
+        );
+      } finally {
+        setLoading(false);
+        setUpdating(false);
+      }
+    },
+    [currentUser?.id]
+  );
 
   useEffect(() => {
-    loadNotifications();
-  }, [currentUser?.id]);
+    loadNotifications(true);
+  }, [loadNotifications]);
+
+  /*
+   * Esta parte conecta la pantalla con WebSocket de forma indirecta.
+   *
+   * DashboardLayout recibe la notificación por WebSocket y lanza el evento:
+   * "novarecruit:notification-received".
+   *
+   * Esta pantalla escucha ese evento y vuelve a consultar la lista de
+   * notificaciones sin que el usuario presione Actualizar.
+   */
+  useEffect(() => {
+    const handleRealtimeNotification = (event) => {
+      const notification = event.detail;
+
+      const isForCurrentUser =
+        Number(notification?.usuarioId) === Number(currentUser?.id);
+
+      if (isForCurrentUser) {
+        loadNotifications(false);
+      }
+    };
+
+    window.addEventListener(
+      "novarecruit:notification-received",
+      handleRealtimeNotification
+    );
+
+    return () => {
+      window.removeEventListener(
+        "novarecruit:notification-received",
+        handleRealtimeNotification
+      );
+    };
+  }, [currentUser?.id, loadNotifications]);
 
   const handleMarkAsRead = async (notification) => {
     try {
       await notificacionService.markAsRead(notification.id);
-      await loadNotifications();
+      await loadNotifications(false);
     } catch (error) {
       setMessage(error.userMessage || "No se pudo actualizar la notificación.");
     }
@@ -80,7 +126,7 @@ function ApplicantNotifications() {
         description="Revisa avisos importantes sobre tus postulaciones y evaluaciones."
         action={
           <button
-            onClick={loadNotifications}
+            onClick={() => loadNotifications(false)}
             className="inline-flex items-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-black"
           >
             <RefreshCw size={17} />
@@ -92,6 +138,12 @@ function ApplicantNotifications() {
       {message && (
         <div className="mb-5 border border-rose-200 bg-rose-50 text-rose-700 rounded-2xl px-4 py-3 text-sm font-semibold">
           {message}
+        </div>
+      )}
+
+      {updating && (
+        <div className="mb-5 border border-sky-200 bg-sky-50 text-sky-700 rounded-2xl px-4 py-3 text-sm font-semibold">
+          Actualizando notificaciones en tiempo real...
         </div>
       )}
 
