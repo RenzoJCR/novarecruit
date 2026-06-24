@@ -1,45 +1,44 @@
 package com.novarecruit.backend.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    /*
-     * Activa WebSocket con STOMP.
-     *
-     * STOMP funciona como una capa de mensajería sobre WebSocket.
-     * El backend publica mensajes en /topic/notificaciones
-     * y el frontend se suscribe a ese canal.
-     */
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
+    private String allowedOrigins;
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // Canal donde el backend enviará mensajes al frontend.
         registry.enableSimpleBroker("/topic");
-
-        // Prefijo reservado para mensajes enviados desde frontend hacia backend.
         registry.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        String[] origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .toArray(String[]::new);
+
         /*
          * Endpoint WebSocket nativo.
          *
-         * El frontend se conectará a:
+         * Local:
          * ws://localhost:8080/ws
          *
-         * Aquí NO usamos SockJS para evitar el error "global is not defined" en Vite.
+         * Azure con Nginx:
+         * ws://57.156.65.62/ws
          */
         registry.addEndpoint("/ws")
-                .setAllowedOrigins(
-                        "http://localhost:5173",
-                        "http://127.0.0.1:5173"
-                );
+                .setAllowedOrigins(origins);
     }
 }

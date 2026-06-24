@@ -1,53 +1,45 @@
 import { Client } from "@stomp/stompjs";
 
-const WS_URL = "ws://localhost:8080/ws";
+function getWebSocketUrl() {
+  if (import.meta.env.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+
+  /*
+   * En producción:
+   * http://57.156.65.62  -> ws://57.156.65.62/ws
+   *
+   * En local con Vite, si no defines VITE_WS_URL,
+   * intentará conectarse al mismo host de Vite.
+   * Para local puedes crear frontend/.env con:
+   * VITE_WS_URL=ws://localhost:8080/ws
+   */
+  return `${protocol}://${window.location.host}/ws`;
+}
 
 export const websocketService = {
-  connectToNotifications(currentUserId, onNotificationReceived) {
-    /*
-     * Cliente STOMP conectado con WebSocket nativo.
-     *
-     * Ya no usamos SockJS porque en Vite puede generar el error:
-     * "global is not defined".
-     *
-     * El backend publica en /topic/notificaciones.
-     * Este cliente escucha ese canal y filtra por usuarioId.
-     */
+  connectToNotifications(usuarioId, onNotification) {
+    if (!usuarioId) return null;
+
     const client = new Client({
-      brokerURL: WS_URL,
-
+      brokerURL: getWebSocketUrl(),
       reconnectDelay: 5000,
-
+      debug: () => {},
       onConnect: () => {
         console.log("WebSocket/STOMP conectado correctamente.");
 
-        client.subscribe("/topic/notificaciones", (message) => {
-          try {
-            const notification = JSON.parse(message.body);
-
-            const isForCurrentUser =
-              Number(notification.usuarioId) === Number(currentUserId);
-
-            if (isForCurrentUser) {
-              onNotificationReceived(notification);
-            }
-          } catch (error) {
-            console.error("Error leyendo notificación WebSocket:", error);
-          }
+        client.subscribe(`/topic/notificaciones/${usuarioId}`, (message) => {
+          const notification = JSON.parse(message.body);
+          onNotification(notification);
         });
       },
-
       onStompError: (frame) => {
-        console.error("Error STOMP:", frame.headers.message);
-        console.error("Detalle:", frame.body);
+        console.error("Error STOMP:", frame);
       },
-
       onWebSocketError: (error) => {
         console.error("Error WebSocket:", error);
-      },
-
-      onDisconnect: () => {
-        console.log("WebSocket/STOMP desconectado.");
       },
     });
 
@@ -57,7 +49,7 @@ export const websocketService = {
   },
 
   disconnect(client) {
-    if (client && client.active) {
+    if (client) {
       client.deactivate();
     }
   },
