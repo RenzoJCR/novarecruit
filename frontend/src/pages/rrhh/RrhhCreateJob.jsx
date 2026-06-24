@@ -33,6 +33,46 @@ const initialSkill = {
   obligatorio: true,
 };
 
+const modalidadesValidas = ["REMOTO", "HIBRIDO", "PRESENCIAL"];
+const nivelesExperienciaValidos = ["JUNIOR", "INTERMEDIO", "SENIOR", "LEAD"];
+const nivelesHabilidadValidos = ["BASICO", "INTERMEDIO", "AVANZADO", "EXPERTO"];
+
+function getTodayInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function isOnlyNumbers(value) {
+  return /^[0-9\s]+$/.test(value.trim());
+}
+
+function hasValidLocationFormat(value) {
+  /*
+   * Permitimos letras, números, espacios, comas, puntos, guiones y slash.
+   * Ejemplos válidos:
+   * Lima, Perú
+   * San Isidro - Lima
+   * Av. Javier Prado 123
+   */
+  return /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s,.\-/]+$/.test(value.trim());
+}
+
+function hasReasonableText(value) {
+  /*
+   * Evita textos que sean solo números o solo símbolos.
+   */
+  const text = value.trim();
+
+  if (!text) return false;
+  if (isOnlyNumbers(text)) return false;
+
+  return /[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(text);
+}
+
 function RrhhCreateJob() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -49,11 +89,22 @@ function RrhhCreateJob() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
+  const todayInputValue = getTodayInputValue();
+
   const selectedSkillsIds = useMemo(() => {
     return requiredSkills
       .map((item) => Number(item.habilidadId))
       .filter((id) => !Number.isNaN(id) && id > 0);
   }, [requiredSkills]);
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4500);
+  };
 
   const loadCatalogs = async () => {
     try {
@@ -92,17 +143,26 @@ function RrhhCreateJob() {
     loadCatalogs();
   }, []);
 
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4500);
-  };
-
   const handleFormChange = (e) => {
     const { name, value } = e.target;
+
+    /*
+     * Validación preventiva para salario:
+     * no permite letras, negativos, e, E ni símbolos raros.
+     * Solo deja números y un punto decimal.
+     */
+    if (name === "salario") {
+      const salaryRegex = /^\d*\.?\d{0,2}$/;
+
+      if (value === "" || salaryRegex.test(value)) {
+        setForm((prev) => ({
+          ...prev,
+          [name]: value,
+        }));
+      }
+
+      return;
+    }
 
     setForm((prev) => ({
       ...prev,
@@ -124,11 +184,25 @@ function RrhhCreateJob() {
   };
 
   const addSkill = () => {
+    if (habilidades.length === 0) {
+      showMessage("No hay habilidades activas para agregar.", "error");
+      return;
+    }
+
+    if (requiredSkills.length >= habilidades.length) {
+      showMessage("Ya agregaste todas las habilidades disponibles.", "error");
+      return;
+    }
+
+    const firstAvailableSkill = habilidades.find(
+      (habilidad) => !selectedSkillsIds.includes(Number(habilidad.id))
+    );
+
     setRequiredSkills((prevSkills) => [
       ...prevSkills,
       {
         ...initialSkill,
-        habilidadId: habilidades[0]?.id || "",
+        habilidadId: firstAvailableSkill?.id || "",
       },
     ]);
   };
@@ -145,30 +219,88 @@ function RrhhCreateJob() {
   };
 
   const validateForm = () => {
+    const titulo = form.titulo.trim();
+    const descripcion = form.descripcion.trim();
+    const ubicacion = form.ubicacion.trim();
+    const salario = form.salario.trim();
+
     if (!currentUser?.id) {
       return "No se encontró el usuario RRHH autenticado.";
     }
 
-    if (!form.titulo.trim()) return "Ingresa el título de la vacante.";
+    if (!titulo) return "Ingresa el título de la vacante.";
 
-    if (form.titulo.trim().length < 5) {
+    if (titulo.length < 5) {
       return "El título debe tener al menos 5 caracteres.";
     }
 
-    if (!form.descripcion.trim()) {
+    if (!hasReasonableText(titulo)) {
+      return "El título debe contener texto válido y no puede ser solo números.";
+    }
+
+    if (!descripcion) {
       return "Ingresa la descripción de la vacante.";
     }
 
-    if (form.descripcion.trim().length < 20) {
+    if (descripcion.length < 20) {
       return "La descripción debe tener al menos 20 caracteres.";
+    }
+
+    if (!hasReasonableText(descripcion)) {
+      return "La descripción debe contener texto válido y no puede ser solo números.";
     }
 
     if (!form.areaId) return "Selecciona un área.";
 
+    if (!areas.some((area) => Number(area.id) === Number(form.areaId))) {
+      return "Selecciona un área válida.";
+    }
+
     if (!form.modalidad) return "Selecciona una modalidad.";
+
+    if (!modalidadesValidas.includes(form.modalidad)) {
+      return "Selecciona una modalidad válida.";
+    }
 
     if (!form.nivelExperiencia) {
       return "Selecciona el nivel de experiencia.";
+    }
+
+    if (!nivelesExperienciaValidos.includes(form.nivelExperiencia)) {
+      return "Selecciona un nivel de experiencia válido.";
+    }
+
+    if (
+      (form.modalidad === "PRESENCIAL" || form.modalidad === "HIBRIDO") &&
+      !ubicacion
+    ) {
+      return "Ingresa la ubicación para una vacante presencial o híbrida.";
+    }
+
+    if (ubicacion) {
+      if (ubicacion.length < 3) {
+        return "La ubicación debe tener al menos 3 caracteres.";
+      }
+
+      if (isOnlyNumbers(ubicacion)) {
+        return "La ubicación no puede contener solo números.";
+      }
+
+      if (!hasValidLocationFormat(ubicacion)) {
+        return "La ubicación contiene caracteres no permitidos.";
+      }
+    }
+
+    if (salario) {
+      const salarioNumber = Number(salario);
+
+      if (Number.isNaN(salarioNumber)) {
+        return "El salario debe ser un número válido.";
+      }
+
+      if (salarioNumber <= 0) {
+        return "El salario debe ser mayor a 0.";
+      }
     }
 
     if (!form.fechaCierre) return "Selecciona una fecha de cierre.";
@@ -178,8 +310,16 @@ function RrhhCreateJob() {
 
     const closeDate = new Date(`${form.fechaCierre}T00:00:00`);
 
+    if (Number.isNaN(closeDate.getTime())) {
+      return "Selecciona una fecha de cierre válida.";
+    }
+
     if (closeDate < today) {
       return "La fecha de cierre no puede ser anterior a hoy.";
+    }
+
+    if (habilidades.length === 0) {
+      return "No hay habilidades activas disponibles para crear la vacante.";
     }
 
     if (requiredSkills.length === 0) {
@@ -190,6 +330,25 @@ function RrhhCreateJob() {
 
     if (hasEmptySkill) {
       return "Todas las habilidades deben estar seleccionadas.";
+    }
+
+    const hasInvalidSkill = requiredSkills.some(
+      (item) =>
+        !habilidades.some(
+          (habilidad) => Number(habilidad.id) === Number(item.habilidadId)
+        )
+    );
+
+    if (hasInvalidSkill) {
+      return "Una de las habilidades seleccionadas no es válida.";
+    }
+
+    const hasInvalidSkillLevel = requiredSkills.some(
+      (item) => !nivelesHabilidadValidos.includes(item.nivelRequerido)
+    );
+
+    if (hasInvalidSkillLevel) {
+      return "Selecciona niveles válidos para las habilidades.";
     }
 
     const uniqueSkills = new Set(selectedSkillsIds);
@@ -216,7 +375,7 @@ function RrhhCreateJob() {
       descripcion: form.descripcion.trim(),
       modalidad: form.modalidad,
       ubicacion: form.ubicacion.trim() || null,
-      salario: form.salario ? Number(form.salario) : null,
+      salario: form.salario.trim() ? Number(form.salario.trim()) : null,
       nivelExperiencia: form.nivelExperiencia,
       fechaCierre: form.fechaCierre,
       areaId: Number(form.areaId),
@@ -318,9 +477,14 @@ function RrhhCreateJob() {
                     value={form.titulo}
                     onChange={handleFormChange}
                     placeholder="Ej: Desarrollador Backend Java"
+                    maxLength={150}
                     className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
                   />
                 </div>
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Mínimo 5 caracteres. No debe ser solo números.
+                </p>
               </div>
 
               <div>
@@ -396,10 +560,19 @@ function RrhhCreateJob() {
                     name="ubicacion"
                     value={form.ubicacion}
                     onChange={handleFormChange}
-                    placeholder="Ej: Lima, Perú"
+                    placeholder={
+                      form.modalidad === "REMOTO"
+                        ? "Opcional para remoto"
+                        : "Ej: Lima, Perú"
+                    }
+                    maxLength={120}
                     className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
                   />
                 </div>
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Obligatoria si la modalidad es presencial o híbrida.
+                </p>
               </div>
 
               <div>
@@ -408,14 +581,18 @@ function RrhhCreateJob() {
                 </label>
 
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   name="salario"
                   value={form.salario}
                   onChange={handleFormChange}
                   placeholder="Ej: 3500"
                   className="input-light"
                 />
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Opcional. Si se ingresa, debe ser mayor a 0.
+                </p>
               </div>
 
               <div>
@@ -432,6 +609,7 @@ function RrhhCreateJob() {
                   <input
                     type="date"
                     name="fechaCierre"
+                    min={todayInputValue}
                     value={form.fechaCierre}
                     onChange={handleFormChange}
                     className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
@@ -449,8 +627,13 @@ function RrhhCreateJob() {
                   value={form.descripcion}
                   onChange={handleFormChange}
                   placeholder="Describe el perfil, responsabilidades y condiciones principales."
+                  maxLength={2000}
                   className="w-full min-h-28 border border-slate-300 rounded-xl p-3 outline-none bg-white text-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
                 />
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Mínimo 20 caracteres. No debe ser solo números.
+                </p>
               </div>
             </div>
           )}
@@ -471,7 +654,10 @@ function RrhhCreateJob() {
             <button
               type="button"
               onClick={addSkill}
-              disabled={habilidades.length === 0}
+              disabled={
+                habilidades.length === 0 ||
+                requiredSkills.length >= habilidades.length
+              }
               className="inline-flex items-center justify-center gap-2 border border-amber-200 bg-amber-50 hover:bg-amber-100 disabled:bg-slate-100 text-amber-700 disabled:text-slate-500 px-4 py-2.5 rounded-xl text-sm font-black"
             >
               <Plus size={17} />
