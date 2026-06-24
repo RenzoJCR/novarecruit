@@ -15,6 +15,8 @@ import { vacanteService } from "../../services/vacanteService.js";
 import { postulacionService } from "../../services/postulacionService.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 
+const nivelesValidos = ["BASICO", "INTERMEDIO", "AVANZADO", "EXPERTO"];
+
 function formatDate(value) {
   if (!value) return "Sin fecha";
 
@@ -44,6 +46,46 @@ function modalidadClass(modalidad) {
   return styles[modalidad] || "bg-slate-50 text-slate-600 border-slate-200";
 }
 
+function modalidadLabel(modalidad) {
+  const labels = {
+    REMOTO: "Remoto",
+    HIBRIDO: "Híbrido",
+    PRESENCIAL: "Presencial",
+  };
+
+  return labels[modalidad] || modalidad || "No especificada";
+}
+
+function nivelLabel(nivel) {
+  const labels = {
+    BASICO: "Básico",
+    INTERMEDIO: "Intermedio",
+    AVANZADO: "Avanzado",
+    EXPERTO: "Experto",
+    JUNIOR: "Junior",
+    SENIOR: "Senior",
+    LEAD: "Lead",
+  };
+
+  return labels[nivel] || nivel || "No especificado";
+}
+
+function allowExperienceValue(value) {
+  /*
+   * Permite solo números enteros positivos o 0.
+   * No permite letras, decimales, negativos, +, e ni símbolos.
+   */
+  return value === "" || /^\d{0,2}$/.test(value);
+}
+
+function hasDuplicatedIds(items) {
+  const ids = items
+    .map((item) => Number(item.habilidadId))
+    .filter((id) => !Number.isNaN(id) && id > 0);
+
+  return new Set(ids).size !== ids.length;
+}
+
 function ApplicantJobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -60,6 +102,15 @@ function ApplicantJobDetail() {
 
   const requiredSkills = useMemo(() => vacante?.habilidades || [], [vacante]);
 
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4500);
+  };
+
   const loadVacante = async () => {
     try {
       setLoading(true);
@@ -67,11 +118,15 @@ function ApplicantJobDetail() {
       const data = await vacanteService.getById(id);
       setVacante(data);
 
+      /*
+       * Se genera una declaración de habilidad por cada requisito
+       * de la vacante. El postulante solo completa nivel y experiencia.
+       */
       setDeclaredSkills(
         (data.habilidades || []).map((item) => ({
           habilidadId: item.habilidadId,
           nivelPostulante: item.nivelRequerido || "BASICO",
-          aniosExperiencia: 0,
+          aniosExperiencia: "0",
         }))
       );
     } catch (error) {
@@ -85,22 +140,17 @@ function ApplicantJobDetail() {
     loadVacante();
   }, [id]);
 
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4500);
-  };
-
   const handleSkillChange = (index, field, value) => {
+    if (field === "aniosExperiencia" && !allowExperienceValue(value)) {
+      return;
+    }
+
     setDeclaredSkills((prevSkills) =>
       prevSkills.map((item, itemIndex) =>
         itemIndex === index
           ? {
               ...item,
-              [field]: field === "aniosExperiencia" ? Number(value) : value,
+              [field]: value,
             }
           : item
       )
@@ -112,30 +162,57 @@ function ApplicantJobDetail() {
       return "No se encontró tu sesión. Inicia sesión nuevamente.";
     }
 
-    if (!vacante) return "No se encontró la vacante.";
+    if (!vacante) {
+      return "No se encontró la vacante.";
+    }
 
     if (vacante.estado !== "ACTIVA" && vacante.estado !== "EN_PROCESO") {
       return "Esta vacante ya no está disponible para postular.";
     }
 
-    if (declaredSkills.length === 0) {
-      return "Debes declarar al menos una habilidad.";
+    if (requiredSkills.length > 0 && declaredSkills.length === 0) {
+      return "Debes declarar tus habilidades para esta vacante.";
     }
 
-    const hasInvalidSkill = declaredSkills.some(
-      (item) => !item.habilidadId || !item.nivelPostulante
-    );
+    if (declaredSkills.length !== requiredSkills.length) {
+      return "Completa la información de todas las habilidades requeridas.";
+    }
+
+    const hasInvalidSkill = declaredSkills.some((item) => {
+      const habilidadId = Number(item.habilidadId);
+
+      return Number.isNaN(habilidadId) || habilidadId <= 0;
+    });
 
     if (hasInvalidSkill) {
-      return "Completa correctamente tus habilidades.";
+      return "Hay una habilidad inválida en tu postulación.";
     }
 
-    const hasNegativeYears = declaredSkills.some(
-      (item) => Number(item.aniosExperiencia) < 0
+    if (hasDuplicatedIds(declaredSkills)) {
+      return "No puedes declarar la misma habilidad más de una vez.";
+    }
+
+    const hasInvalidLevel = declaredSkills.some(
+      (item) => !nivelesValidos.includes(item.nivelPostulante)
     );
 
-    if (hasNegativeYears) {
-      return "Los años de experiencia no pueden ser negativos.";
+    if (hasInvalidLevel) {
+      return "Selecciona un nivel válido para todas tus habilidades.";
+    }
+
+    const hasInvalidYears = declaredSkills.some((item) => {
+      const value = String(item.aniosExperiencia ?? "").trim();
+
+      if (value === "") return true;
+      if (!/^\d+$/.test(value)) return true;
+
+      const years = Number(value);
+
+      return Number.isNaN(years) || years < 0 || years > 60;
+    });
+
+    if (hasInvalidYears) {
+      return "Los años de experiencia deben ser números enteros entre 0 y 60.";
     }
 
     return null;
@@ -266,7 +343,7 @@ function ApplicantJobDetail() {
               vacante.modalidad
             )}`}
           >
-            {vacante.modalidad}
+            {modalidadLabel(vacante.modalidad)}
           </span>
         </div>
       </section>
@@ -291,7 +368,7 @@ function ApplicantJobDetail() {
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <Briefcase size={18} className="text-sky-600" />
           <p className="text-sm font-black text-slate-900 mt-2">
-            {vacante.nivelExperiencia}
+            {nivelLabel(vacante.nivelExperiencia)}
           </p>
           <p className="text-xs text-slate-500">Experiencia</p>
         </div>
@@ -316,21 +393,22 @@ function ApplicantJobDetail() {
 
         {requiredSkills.length === 0 ? (
           <div className="mt-5 border border-slate-200 rounded-xl p-4 text-slate-500">
-            Esta vacante no tiene habilidades registradas.
+            Esta vacante no tiene habilidades registradas. Puedes postular sin
+            declarar habilidades.
           </div>
         ) : (
           <div className="mt-5 space-y-3">
             {requiredSkills.map((skill, index) => (
               <div
-                key={skill.id}
-                className="grid grid-cols-1 md:grid-cols-[1fr_180px_160px] gap-3 items-center border border-slate-200 rounded-xl p-4"
+                key={skill.id || skill.habilidadId || index}
+                className="grid grid-cols-1 md:grid-cols-[1fr_180px_170px] gap-3 items-center border border-slate-200 rounded-xl p-4"
               >
                 <div>
                   <p className="font-black text-slate-900">
                     {skill.habilidadNombre}
                   </p>
                   <p className="text-sm text-slate-500 mt-1">
-                    Nivel requerido: {skill.nivelRequerido} ·{" "}
+                    Nivel requerido: {nivelLabel(skill.nivelRequerido)} ·{" "}
                     {skill.obligatorio ? "Obligatoria" : "Deseable"}
                   </p>
                 </div>
@@ -364,9 +442,9 @@ function ApplicantJobDetail() {
                   </label>
 
                   <input
-                    type="number"
-                    min="0"
-                    value={declaredSkills[index]?.aniosExperiencia || 0}
+                    type="text"
+                    inputMode="numeric"
+                    value={declaredSkills[index]?.aniosExperiencia ?? "0"}
                     onChange={(e) =>
                       handleSkillChange(
                         index,
@@ -374,8 +452,14 @@ function ApplicantJobDetail() {
                         e.target.value
                       )
                     }
+                    placeholder="Ej: 2"
+                    maxLength={2}
                     className="input-light"
                   />
+
+                  <p className="text-xs text-slate-400 mt-1">
+                    Entre 0 y 60 años.
+                  </p>
                 </div>
               </div>
             ))}
