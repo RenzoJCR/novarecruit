@@ -17,6 +17,7 @@ public class AreaService {
 
     private final AreaRepository areaRepository;
     private final LogSistemaService logSistemaService;
+    private final AdminNotificationService adminNotificationService;
 
     @Transactional(readOnly = true)
     public List<AreaResponse> listarAreas() {
@@ -65,6 +66,17 @@ public class AreaService {
                 "127.0.0.1"
         );
 
+        /*
+         * Notificación para administradores:
+         * avisa que se creó un área nueva.
+         */
+        adminNotificationService.notificarAdministradores(
+                "Área creada",
+                "Se creó el área " + areaGuardada.getNombre() + ".",
+                "SISTEMA",
+                "/admin/areas"
+        );
+
         return mapToResponse(areaGuardada);
     }
 
@@ -96,6 +108,13 @@ public class AreaService {
                 "127.0.0.1"
         );
 
+        adminNotificationService.notificarAdministradores(
+                "Área actualizada",
+                "Se actualizó el área " + areaActualizada.getNombre() + ".",
+                "SISTEMA",
+                "/admin/areas"
+        );
+
         return mapToResponse(areaActualizada);
     }
 
@@ -117,6 +136,13 @@ public class AreaService {
                 "Se desactivó el área: " + area.getNombre(),
                 "127.0.0.1"
         );
+
+        adminNotificationService.notificarAdministradores(
+                "Área desactivada",
+                "Se desactivó el área " + area.getNombre() + ".",
+                "SISTEMA",
+                "/admin/areas"
+        );
     }
 
     @Transactional
@@ -137,6 +163,13 @@ public class AreaService {
                 "AREAS",
                 "Se reactivó el área: " + areaActualizada.getNombre(),
                 "127.0.0.1"
+        );
+
+        adminNotificationService.notificarAdministradores(
+                "Área reactivada",
+                "Se reactivó el área " + areaActualizada.getNombre() + ".",
+                "SISTEMA",
+                "/admin/areas"
         );
 
         return mapToResponse(areaActualizada);

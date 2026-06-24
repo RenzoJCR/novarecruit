@@ -21,6 +21,7 @@ public class UsuarioService {
     private final RolService rolService;
     private final LogSistemaService logSistemaService;
     private final PasswordEncoder passwordEncoder;
+    private final AdminNotificationService adminNotificationService;
 
     @Transactional(readOnly = true)
     public List<UsuarioResponse> listarUsuarios() {
@@ -69,6 +70,18 @@ public class UsuarioService {
                 "127.0.0.1"
         );
 
+        /*
+         * Notificación para administradores:
+         * avisa que se registró un usuario interno en el sistema.
+         */
+        adminNotificationService.notificarAdministradores(
+                "Usuario creado",
+                "Se creó el usuario " + usuarioGuardado.getCorreo()
+                        + " con rol " + usuarioGuardado.getRol().getNombre() + ".",
+                "SISTEMA",
+                "/admin/usuarios"
+        );
+
         return mapToResponse(usuarioGuardado);
     }
 
@@ -108,6 +121,13 @@ public class UsuarioService {
                 "127.0.0.1"
         );
 
+        adminNotificationService.notificarAdministradores(
+                "Usuario actualizado",
+                "Se actualizó la información del usuario " + usuarioActualizado.getCorreo() + ".",
+                "SISTEMA",
+                "/admin/usuarios"
+        );
+
         return mapToResponse(usuarioActualizado);
     }
 
@@ -129,6 +149,13 @@ public class UsuarioService {
                 "Se desactivó el usuario: " + usuario.getCorreo(),
                 "127.0.0.1"
         );
+
+        adminNotificationService.notificarAdministradores(
+                "Usuario inhabilitado",
+                "Se inhabilitó el usuario " + usuario.getCorreo() + ".",
+                "SISTEMA",
+                "/admin/usuarios"
+        );
     }
 
     @Transactional
@@ -149,6 +176,13 @@ public class UsuarioService {
                 "USUARIOS",
                 "Se reactivó el usuario: " + usuarioActualizado.getCorreo(),
                 "127.0.0.1"
+        );
+
+        adminNotificationService.notificarAdministradores(
+                "Usuario reactivado",
+                "Se reactivó el usuario " + usuarioActualizado.getCorreo() + ".",
+                "SISTEMA",
+                "/admin/usuarios"
         );
 
         return mapToResponse(usuarioActualizado);
