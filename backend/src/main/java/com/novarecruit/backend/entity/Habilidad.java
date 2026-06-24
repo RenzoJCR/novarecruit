@@ -21,7 +21,7 @@ public class Habilidad {
     @Column(name = "nombre", nullable = false, unique = true, length = 100)
     private String nombre;
 
-    @Column(name = "categoria", length = 100)
+    @Column(name = "categoria", nullable = false, length = 100)
     private String categoria;
 
     @Column(name = "estado", nullable = false)

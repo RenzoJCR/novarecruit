@@ -7,8 +7,13 @@ export const habilidadService = {
   },
 
   async getActive() {
-    const data = await this.getAll();
-    return data.filter((habilidad) => habilidad.estado === true);
+    const response = await api.get("/habilidades/activas");
+    return response.data;
+  },
+
+  async getById(id) {
+    const response = await api.get(`/habilidades/${id}`);
+    return response.data;
   },
 
   async create(habilidadData) {
@@ -23,5 +28,10 @@ export const habilidadService = {
 
   async deactivate(id) {
     await api.delete(`/habilidades/${id}`);
+  },
+
+  async reactivate(id) {
+    const response = await api.patch(`/habilidades/${id}/reactivar`);
+    return response.data;
   },
 };

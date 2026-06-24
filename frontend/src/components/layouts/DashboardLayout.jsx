@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   BookOpenCheck,
+  BrainCircuit,
   Briefcase,
   ClipboardList,
   FileBarChart,
@@ -152,6 +153,11 @@ const menuByRole = {
       label: "Áreas",
       path: "/admin/areas",
       icon: Building2,
+    },
+    {
+      label: "Habilidades",
+      path: "/admin/habilidades",
+      icon: BrainCircuit,
     },
     {
       label: "Logs del sistema",

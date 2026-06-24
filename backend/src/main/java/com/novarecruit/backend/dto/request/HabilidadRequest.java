@@ -13,7 +13,8 @@ public class HabilidadRequest {
     @Size(min = 2, max = 100, message = "El nombre debe tener entre 2 y 100 caracteres.")
     private String nombre;
 
-    @Size(max = 100, message = "La categoría no debe superar los 100 caracteres.")
+    @NotBlank(message = "La categoría es obligatoria.")
+    @Size(min = 2, max = 100, message = "La categoría debe tener entre 2 y 100 caracteres.")
     private String categoria;
 
     private Boolean estado;

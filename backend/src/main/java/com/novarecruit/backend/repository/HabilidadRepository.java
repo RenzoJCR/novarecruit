@@ -7,11 +7,11 @@ import java.util.List;
 
 public interface HabilidadRepository extends JpaRepository<Habilidad, Long> {
 
-    boolean existsByNombreIgnoreCase(String nombre);
-
-    boolean existsByNombreIgnoreCaseAndIdNot(String nombre, Long id);
+    List<Habilidad> findAllByOrderByIdAsc();
 
     List<Habilidad> findByEstadoTrueOrderByNombreAsc();
 
-    List<Habilidad> findAllByOrderByIdAsc();
+    boolean existsByNombreIgnoreCase(String nombre);
+
+    boolean existsByNombreIgnoreCaseAndIdNot(String nombre, Long id);
 }

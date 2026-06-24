@@ -29,8 +29,8 @@ public class HabilidadController {
     }
 
     @GetMapping("/{id}")
-    public HabilidadResponse obtenerHabilidadPorId(@PathVariable Long id) {
-        return habilidadService.obtenerHabilidadPorId(id);
+    public HabilidadResponse obtenerPorId(@PathVariable Long id) {
+        return habilidadService.obtenerPorId(id);
     }
 
     @PostMapping
@@ -51,5 +51,10 @@ public class HabilidadController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void desactivarHabilidad(@PathVariable Long id) {
         habilidadService.desactivarHabilidad(id);
+    }
+
+    @PatchMapping("/{id}/reactivar")
+    public HabilidadResponse reactivarHabilidad(@PathVariable Long id) {
+        return habilidadService.reactivarHabilidad(id);
     }
 }

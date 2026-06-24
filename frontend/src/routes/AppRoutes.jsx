@@ -35,6 +35,7 @@ import TechnicalResults from "../pages/technical/TechnicalResults.jsx";
 import AdminUsers from "../pages/admin/AdminUsers.jsx";
 import AdminCreateUser from "../pages/admin/AdminCreateUser.jsx";
 import AdminAreas from "../pages/admin/AdminAreas.jsx";
+import AdminSkills from "../pages/admin/AdminSkills.jsx";
 import AdminReports from "../pages/admin/AdminReports.jsx";
 
 function AppRoutes() {
@@ -186,6 +187,7 @@ function AppRoutes() {
         <Route path="/admin/usuarios" element={<AdminUsers />} />
         <Route path="/admin/usuarios/create" element={<AdminCreateUser />} />
         <Route path="/admin/areas" element={<AdminAreas />} />
+        <Route path="/admin/habilidades" element={<AdminSkills />} />
         <Route path="/admin/reportes" element={<AdminReports />} />
         <Route
           path="/admin/configuracion"

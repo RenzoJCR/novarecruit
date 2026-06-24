@@ -7,6 +7,7 @@ import com.novarecruit.backend.exception.BusinessException;
 import com.novarecruit.backend.repository.HabilidadRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -16,7 +17,9 @@ public class HabilidadService {
 
     private final HabilidadRepository habilidadRepository;
     private final LogSistemaService logSistemaService;
+    private final AdminNotificationService adminNotificationService;
 
+    @Transactional(readOnly = true)
     public List<HabilidadResponse> listarHabilidades() {
         return habilidadRepository.findAllByOrderByIdAsc()
                 .stream()
@@ -24,6 +27,7 @@ public class HabilidadService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<HabilidadResponse> listarHabilidadesActivas() {
         return habilidadRepository.findByEstadoTrueOrderByNombreAsc()
                 .stream()
@@ -31,17 +35,16 @@ public class HabilidadService {
                 .toList();
     }
 
-    public Habilidad buscarHabilidadPorId(Long id) {
-        return habilidadRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("No se encontró la habilidad solicitada."));
+    @Transactional(readOnly = true)
+    public HabilidadResponse obtenerPorId(Long id) {
+        Habilidad habilidad = buscarHabilidadPorId(id);
+        return mapToResponse(habilidad);
     }
 
-    public HabilidadResponse obtenerHabilidadPorId(Long id) {
-        return mapToResponse(buscarHabilidadPorId(id));
-    }
-
+    @Transactional
     public HabilidadResponse crearHabilidad(HabilidadRequest request) {
         String nombreNormalizado = normalizarTexto(request.getNombre());
+        String categoriaNormalizada = normalizarTexto(request.getCategoria());
 
         if (habilidadRepository.existsByNombreIgnoreCase(nombreNormalizado)) {
             throw new BusinessException("Ya existe una habilidad registrada con ese nombre.");
@@ -49,7 +52,7 @@ public class HabilidadService {
 
         Habilidad habilidad = Habilidad.builder()
                 .nombre(nombreNormalizado)
-                .categoria(normalizarTextoOpcional(request.getCategoria()))
+                .categoria(categoriaNormalizada)
                 .estado(request.getEstado() != null ? request.getEstado() : true)
                 .build();
 
@@ -63,19 +66,29 @@ public class HabilidadService {
                 "127.0.0.1"
         );
 
+        adminNotificationService.notificarAdministradores(
+                "Habilidad creada",
+                "Se creó la habilidad " + habilidadGuardada.getNombre() + ".",
+                "SISTEMA",
+                "/admin/habilidades"
+        );
+
         return mapToResponse(habilidadGuardada);
     }
 
+    @Transactional
     public HabilidadResponse actualizarHabilidad(Long id, HabilidadRequest request) {
         Habilidad habilidad = buscarHabilidadPorId(id);
+
         String nombreNormalizado = normalizarTexto(request.getNombre());
+        String categoriaNormalizada = normalizarTexto(request.getCategoria());
 
         if (habilidadRepository.existsByNombreIgnoreCaseAndIdNot(nombreNormalizado, id)) {
             throw new BusinessException("Ya existe otra habilidad registrada con ese nombre.");
         }
 
         habilidad.setNombre(nombreNormalizado);
-        habilidad.setCategoria(normalizarTextoOpcional(request.getCategoria()));
+        habilidad.setCategoria(categoriaNormalizada);
 
         if (request.getEstado() != null) {
             habilidad.setEstado(request.getEstado());
@@ -91,9 +104,17 @@ public class HabilidadService {
                 "127.0.0.1"
         );
 
+        adminNotificationService.notificarAdministradores(
+                "Habilidad actualizada",
+                "Se actualizó la habilidad " + habilidadActualizada.getNombre() + ".",
+                "SISTEMA",
+                "/admin/habilidades"
+        );
+
         return mapToResponse(habilidadActualizada);
     }
 
+    @Transactional
     public void desactivarHabilidad(Long id) {
         Habilidad habilidad = buscarHabilidadPorId(id);
 
@@ -111,6 +132,56 @@ public class HabilidadService {
                 "Se desactivó la habilidad: " + habilidad.getNombre(),
                 "127.0.0.1"
         );
+
+        adminNotificationService.notificarAdministradores(
+                "Habilidad desactivada",
+                "Se desactivó la habilidad " + habilidad.getNombre() + ".",
+                "SISTEMA",
+                "/admin/habilidades"
+        );
+    }
+
+    @Transactional
+    public HabilidadResponse reactivarHabilidad(Long id) {
+        Habilidad habilidad = buscarHabilidadPorId(id);
+
+        if (Boolean.TRUE.equals(habilidad.getEstado())) {
+            throw new BusinessException("La habilidad ya se encuentra activa.");
+        }
+
+        habilidad.setEstado(true);
+
+        Habilidad habilidadActualizada = habilidadRepository.save(habilidad);
+
+        logSistemaService.registrarLog(
+                null,
+                "REACTIVAR_HABILIDAD",
+                "HABILIDADES",
+                "Se reactivó la habilidad: " + habilidadActualizada.getNombre(),
+                "127.0.0.1"
+        );
+
+        adminNotificationService.notificarAdministradores(
+                "Habilidad reactivada",
+                "Se reactivó la habilidad " + habilidadActualizada.getNombre() + ".",
+                "SISTEMA",
+                "/admin/habilidades"
+        );
+
+        return mapToResponse(habilidadActualizada);
+    }
+
+    /*
+     * Este método lo usan otros servicios, por ejemplo vacantes y postulaciones,
+     * para validar habilidades existentes.
+     */
+    public Habilidad buscarHabilidadPorId(Long id) {
+        return habilidadRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("No se encontró la habilidad solicitada."));
+    }
+
+    private String normalizarTexto(String value) {
+        return value == null ? null : value.trim();
     }
 
     private HabilidadResponse mapToResponse(Habilidad habilidad) {
@@ -121,17 +192,5 @@ public class HabilidadService {
                 .estado(habilidad.getEstado())
                 .createdAt(habilidad.getCreatedAt())
                 .build();
-    }
-
-    private String normalizarTexto(String value) {
-        return value == null ? null : value.trim();
-    }
-
-    private String normalizarTextoOpcional(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return null;
-        }
-
-        return value.trim();
     }
 }
