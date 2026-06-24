@@ -13,12 +13,13 @@ import Register from "../pages/auth/Register.jsx";
 import VerifyEmail from "../pages/auth/VerifyEmail.jsx";
 import ChangePassword from "../pages/auth/ChangePassword.jsx";
 
+import Notifications from "../pages/shared/Notifications.jsx";
+
 import ApplicantJobs from "../pages/applicant/ApplicantJobs.jsx";
 import ApplicantJobDetail from "../pages/applicant/ApplicantJobDetail.jsx";
 import ApplicantApplications from "../pages/applicant/ApplicantApplications.jsx";
 import ApplicantEvaluations from "../pages/applicant/ApplicantEvaluations.jsx";
 import ApplicantEvaluationDetail from "../pages/applicant/ApplicantEvaluationDetail.jsx";
-import ApplicantNotifications from "../pages/applicant/ApplicantNotifications.jsx";
 import ApplicantProfile from "../pages/applicant/ApplicantProfile.jsx";
 
 import RrhhJobs from "../pages/rrhh/RrhhJobs.jsx";
@@ -60,6 +61,16 @@ function AppRoutes() {
 
       <Route
         element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/notificaciones" element={<Notifications />} />
+      </Route>
+
+      <Route
+        element={
           <ProtectedRoute allowedRoles={["POSTULANTE"]}>
             <DashboardLayout />
           </ProtectedRoute>
@@ -92,7 +103,7 @@ function AppRoutes() {
         />
         <Route
           path="/applicant/notificaciones"
-          element={<ApplicantNotifications />}
+          element={<Navigate to="/notificaciones" replace />}
         />
         <Route path="/applicant/perfil" element={<ApplicantProfile />} />
       </Route>

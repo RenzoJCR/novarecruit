@@ -76,7 +76,7 @@ const menuByRole = {
     },
     {
       label: "Notificaciones",
-      path: "/applicant/notificaciones",
+      path: "/notificaciones",
       icon: Bell,
     },
     {
@@ -102,6 +102,11 @@ const menuByRole = {
       path: "/rrhh/postulaciones",
       icon: ClipboardList,
     },
+    {
+      label: "Notificaciones",
+      path: "/notificaciones",
+      icon: Bell,
+    },
   ],
 
   LIDER_TECNICO: [
@@ -124,6 +129,11 @@ const menuByRole = {
       label: "Resultados",
       path: "/technical/resultados",
       icon: Trophy,
+    },
+    {
+      label: "Notificaciones",
+      path: "/notificaciones",
+      icon: Bell,
     },
   ],
 
@@ -148,6 +158,11 @@ const menuByRole = {
       path: "/admin/reportes",
       icon: FileBarChart,
     },
+    {
+      label: "Notificaciones",
+      path: "/notificaciones",
+      icon: Bell,
+    },
   ],
 };
 
@@ -157,12 +172,6 @@ function DashboardLayout() {
   const { currentUser, logout } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  /*
-   * Estados para la notificación en tiempo real.
-   * realtimeNotification guarda el último mensaje recibido por WebSocket.
-   * notificationCount sirve para mostrar un contador simple en el panel.
-   */
   const [realtimeNotification, setRealtimeNotification] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -171,52 +180,43 @@ function DashboardLayout() {
   const styles = roleStyles[roleName] || roleStyles.POSTULANTE;
 
   /*
-   * Aquí se conecta el frontend al WebSocket cuando hay un usuario autenticado.
+   * Conexión WebSocket global para cualquier rol.
    *
-   * Explicación para exposición:
-   * - El backend publica notificaciones en /topic/notificaciones.
-   * - El frontend escucha ese canal.
-   * - Si el usuarioId del mensaje coincide con el usuario conectado, se muestra el aviso.
+   * El backend envía mensajes a /topic/notificaciones.
+   * El frontend recibe solo las notificaciones cuyo usuarioId coincide
+   * con el usuario autenticado.
    */
   useEffect(() => {
     if (!currentUser?.id) return undefined;
 
-  const client = websocketService.connectToNotifications(
-    currentUser.id,
-    (notification) => {
-      /*
-      * Cuando llega una notificación por WebSocket:
-      * 1. Mostramos el aviso flotante.
-      * 2. Aumentamos el contador visual.
-      * 3. Lanzamos un evento interno para que otras pantallas,
-      *    como Notificaciones, puedan actualizarse sin recargar.
-      */
-      setRealtimeNotification(notification);
-      setNotificationCount((prev) => prev + 1);
+    const client = websocketService.connectToNotifications(
+      currentUser.id,
+      (notification) => {
+        setRealtimeNotification(notification);
 
-      window.dispatchEvent(
-        new CustomEvent("novarecruit:notification-received", {
-          detail: notification,
-        })
-      );
+        if (location.pathname !== "/notificaciones") {
+          setNotificationCount((prev) => prev + 1);
+        }
 
-      setTimeout(() => {
-        setRealtimeNotification(null);
-      }, 6000);
-    }
-  );
+        window.dispatchEvent(
+          new CustomEvent("novarecruit:notification-received", {
+            detail: notification,
+          })
+        );
+
+        setTimeout(() => {
+          setRealtimeNotification(null);
+        }, 6000);
+      }
+    );
 
     return () => {
       websocketService.disconnect(client);
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, location.pathname]);
 
-  /*
-   * Si el postulante entra a su pantalla de notificaciones,
-   * limpiamos el contador visual.
-   */
   useEffect(() => {
-    if (location.pathname === "/applicant/notificaciones") {
+    if (location.pathname === "/notificaciones") {
       setNotificationCount(0);
     }
   }, [location.pathname]);
@@ -231,11 +231,9 @@ function DashboardLayout() {
   };
 
   const handleNotificationClick = () => {
-    if (roleName === "POSTULANTE") {
-      setNotificationCount(0);
-      setRealtimeNotification(null);
-      navigate("/applicant/notificaciones");
-    }
+    setNotificationCount(0);
+    setRealtimeNotification(null);
+    navigate("/notificaciones");
   };
 
   const getPageTitle = () => {
@@ -389,6 +387,13 @@ function DashboardLayout() {
                     >
                       <Icon size={20} />
                       <span>{item.label}</span>
+
+                      {item.path === "/notificaciones" &&
+                        notificationCount > 0 && (
+                          <span className="ml-auto min-w-5 h-5 px-1 rounded-full bg-rose-600 text-white text-xs font-black flex items-center justify-center">
+                            {notificationCount}
+                          </span>
+                        )}
                     </NavLink>
                   );
                 })}
@@ -432,7 +437,7 @@ function DashboardLayout() {
               type="button"
               onClick={handleNotificationClick}
               className="relative w-11 h-11 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-700"
-              title="Notificaciones en tiempo real"
+              title="Notificaciones"
             >
               <Bell size={20} />
 

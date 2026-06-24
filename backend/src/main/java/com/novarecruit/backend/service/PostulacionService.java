@@ -98,12 +98,33 @@ public class PostulacionService {
                 "127.0.0.1"
         );
 
+        /*
+         * Notificación para el postulante:
+         * confirma que su postulación fue registrada.
+         */
         notificacionService.crearNotificacion(
                 usuario.getId(),
                 "Postulación registrada",
                 "Tu postulación a " + vacante.getTitulo() + " fue registrada correctamente.",
                 "POSTULACION",
                 "/applicant/postulaciones"
+        );
+
+        /*
+         * Notificación para RRHH:
+         * avisa en tiempo real al responsable de la vacante que llegó una nueva postulación.
+         *
+         * Esta era la parte que faltaba.
+         * Como NotificacionService ya guarda en BD y emite por WebSocket,
+         * RRHH verá el aviso sin recargar si tiene sesión abierta.
+         */
+        notificacionService.crearNotificacion(
+                vacante.getRrhh().getId(),
+                "Nueva postulación recibida",
+                "El postulante " + usuario.getNombres() + " " + usuario.getApellidos()
+                        + " aplicó a la vacante: " + vacante.getTitulo() + ".",
+                "POSTULACION",
+                "/rrhh/postulaciones"
         );
 
         return mapToResponse(postulacionGuardada);
@@ -141,6 +162,10 @@ public class PostulacionService {
                 "127.0.0.1"
         );
 
+        /*
+         * Notificación para el postulante:
+         * informa si pasó o no pasó la revisión de RRHH.
+         */
         notificacionService.crearNotificacion(
                 postulacion.getUsuario().getId(),
                 "Resultado de revisión RRHH",
