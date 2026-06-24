@@ -19,6 +19,39 @@ const initialForm = {
   descripcion: "",
 };
 
+function isOnlyNumbers(value) {
+  return /^[0-9\s]+$/.test(value.trim());
+}
+
+function hasTextContent(value) {
+  const text = value.trim();
+
+  if (!text) return false;
+  if (isOnlyNumbers(text)) return false;
+
+  return /[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(text);
+}
+
+function hasValidAreaName(value) {
+  /*
+   * Permitimos letras, números, espacios y algunos caracteres comunes
+   * para nombres de áreas como:
+   * - Desarrollo de Software
+   * - I+D
+   * - QA / Testing
+   * - TI - Soporte
+   */
+  return /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s&+./-]+$/.test(value.trim());
+}
+
+function hasValidDescription(value) {
+  /*
+   * Descripción con caracteres comunes.
+   * Evitamos símbolos raros que no aportan al texto.
+   */
+  return /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s,.;:()&+./-]+$/.test(value.trim());
+}
+
 function AdminAreas() {
   const [areas, setAreas] = useState([]);
   const [selectedArea, setSelectedArea] = useState(null);
@@ -41,12 +74,13 @@ function AdminAreas() {
 
     setTimeout(() => {
       setMessage("");
-    }, 4000);
+    }, 4500);
   };
 
   const loadAreas = async () => {
     try {
       setLoading(true);
+
       const data = await areaService.getAll();
       setAreas(data);
     } catch (error) {
@@ -107,6 +141,27 @@ function AdminAreas() {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
+    /*
+     * Validación preventiva:
+     * no bloqueamos totalmente la escritura, pero evitamos caracteres raros.
+     */
+    if (name === "nombre") {
+      const partialNameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s&+./-]*$/;
+
+      if (!partialNameRegex.test(value)) {
+        return;
+      }
+    }
+
+    if (name === "descripcion") {
+      const partialDescriptionRegex =
+        /^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s,.;:()&+./-]*$/;
+
+      if (!partialDescriptionRegex.test(value)) {
+        return;
+      }
+    }
+
     setForm((prev) => ({
       ...prev,
       [name]: value,
@@ -114,10 +169,37 @@ function AdminAreas() {
   };
 
   const validateForm = () => {
-    if (!form.nombre.trim()) return "Ingresa el nombre del área.";
+    const nombre = form.nombre.trim();
+    const descripcion = form.descripcion.trim();
 
-    if (form.nombre.trim().length < 3) {
+    if (!nombre) {
+      return "Ingresa el nombre del área.";
+    }
+
+    if (nombre.length < 3) {
       return "El nombre debe tener al menos 3 caracteres.";
+    }
+
+    if (!hasTextContent(nombre)) {
+      return "El nombre del área debe contener texto válido y no puede ser solo números.";
+    }
+
+    if (!hasValidAreaName(nombre)) {
+      return "El nombre del área contiene caracteres no permitidos.";
+    }
+
+    if (descripcion) {
+      if (descripcion.length < 10) {
+        return "La descripción debe tener al menos 10 caracteres si la ingresas.";
+      }
+
+      if (!hasTextContent(descripcion)) {
+        return "La descripción debe contener texto válido y no puede ser solo números.";
+      }
+
+      if (!hasValidDescription(descripcion)) {
+        return "La descripción contiene caracteres no permitidos.";
+      }
     }
 
     return null;
@@ -265,6 +347,7 @@ function AdminAreas() {
           <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3">
             <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-100">
               <Search size={18} className="text-rose-600" />
+
               <input
                 type="text"
                 placeholder="Buscar por nombre, descripción o estado..."
@@ -303,9 +386,11 @@ function AdminAreas() {
           ) : filteredAreas.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
               <Building2 size={36} className="mx-auto text-rose-600" />
+
               <h2 className="text-xl font-black text-slate-900 mt-3">
                 No hay áreas para mostrar
               </h2>
+
               <p className="text-sm text-slate-500 mt-1">
                 Crea una nueva área o ajusta los filtros.
               </p>
@@ -397,6 +482,7 @@ function AdminAreas() {
                 <h2 className="text-xl font-black text-slate-900">
                   {selectedArea ? "Editar área" : "Nueva área"}
                 </h2>
+
                 <p className="text-sm text-slate-500 mt-1">
                   {selectedArea
                     ? "Actualiza la información del área."
@@ -426,8 +512,13 @@ function AdminAreas() {
                   value={form.nombre}
                   onChange={handleChange}
                   placeholder="Ej: Desarrollo de Software"
+                  maxLength={100}
                   className="input-light"
                 />
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Mínimo 3 caracteres. No puede ser solo números.
+                </p>
               </div>
 
               <div>
@@ -440,8 +531,13 @@ function AdminAreas() {
                   value={form.descripcion}
                   onChange={handleChange}
                   placeholder="Descripción breve del área."
+                  maxLength={255}
                   className="w-full min-h-28 border border-slate-300 rounded-xl p-3 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
                 />
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Opcional. Si se ingresa, mínimo 10 caracteres.
+                </p>
               </div>
 
               <button
