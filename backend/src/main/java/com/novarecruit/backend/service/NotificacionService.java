@@ -18,16 +18,12 @@ public class NotificacionService {
     private final SimpMessagingTemplate messagingTemplate;
 
     /*
-     * Crea una notificación y además la envía en tiempo real por WebSocket.
+     * Crea una notificación, la guarda en BD y la envía en tiempo real por WebSocket.
      *
-     * Flujo:
-     * 1. Se guarda en la tabla notificaciones.
-     * 2. Se convierte a NotificacionResponse.
-     * 3. Se publica al canal /topic/notificaciones/{usuarioId}.
-     *
-     * El frontend está suscrito exactamente a ese canal.
+     * Se devuelve NotificacionResponse porque algunos controladores, como WebSocketTestController,
+     * pueden necesitar mostrar la notificación creada como respuesta.
      */
-    public void crearNotificacion(
+    public NotificacionResponse crearNotificacion(
             Long usuarioId,
             String titulo,
             String mensaje,
@@ -47,10 +43,16 @@ public class NotificacionService {
 
         NotificacionResponse response = mapToResponse(guardada);
 
+        /*
+         * Canal al que se suscribe el frontend:
+         * /topic/notificaciones/{usuarioId}
+         */
         messagingTemplate.convertAndSend(
                 "/topic/notificaciones/" + usuarioId,
                 response
         );
+
+        return response;
     }
 
     public List<NotificacionResponse> listarPorUsuario(Long usuarioId) {
