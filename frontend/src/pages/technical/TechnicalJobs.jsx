@@ -16,6 +16,10 @@ import { vacanteService } from "../../services/vacanteService.js";
 import { postulacionService } from "../../services/postulacionService.js";
 import { evaluacionService } from "../../services/evaluacionService.js";
 import { evaluacionPostulacionService } from "../../services/evaluacionPostulacionService.js";
+import {
+  getVacanteEstadoLabel,
+  statusClass,
+} from "../../utils/statusLabels.js";
 
 function TechnicalJobs() {
   const [vacantes, setVacantes] = useState([]);
@@ -48,6 +52,7 @@ function TechnicalJobs() {
       setPostulaciones(postulacionesData);
       setEvaluaciones(evaluacionesData);
       setAsignaciones(asignacionesData);
+      setMessage("");
     } catch (error) {
       setMessage(
         error.userMessage || "No se pudieron cargar los procesos técnicos."
@@ -76,16 +81,16 @@ function TechnicalJobs() {
 
     return {
       postulantes: postulacionesVacante.length,
-      aprobadosRrhh: postulacionesVacante.filter(
+      listos: postulacionesVacante.filter(
         (item) => item.estado === "APROBADO_RRHH"
       ).length,
       enEvaluacion: postulacionesVacante.filter((item) =>
         ["EVALUACION_PENDIENTE", "EVALUACION_COMPLETADA"].includes(item.estado)
       ).length,
-      completadas: asignacionesVacante.filter(
+      porRevisar: asignacionesVacante.filter(
         (item) => item.estado === "COMPLETADA"
       ).length,
-      aptosTecnicos: postulacionesVacante.filter(
+      aptos: postulacionesVacante.filter(
         (item) => item.estado === "APROBADO_TECNICO"
       ).length,
       seleccionados: postulacionesVacante.filter(
@@ -101,10 +106,14 @@ function TechnicalJobs() {
     return vacantes
       .filter((vacante) => vacante.estado !== "CANCELADA")
       .filter((vacante) => {
+        const estadoVisible = getVacanteEstadoLabel(
+          vacante.estado
+        ).toLowerCase();
+
         const matchesSearch =
           vacante.titulo?.toLowerCase().includes(value) ||
           vacante.areaNombre?.toLowerCase().includes(value) ||
-          vacante.estado?.toLowerCase().includes(value);
+          estadoVisible.includes(value);
 
         const matchesStatus =
           selectedStatus === "Todos" || vacante.estado === selectedStatus;
@@ -113,79 +122,68 @@ function TechnicalJobs() {
       });
   }, [vacantes, search, selectedStatus]);
 
-  const activeProcesses = vacantes.filter(
-    (item) => item.estado === "ACTIVA" || item.estado === "EN_PROCESO"
+  const procesosActivos = vacantes.filter((item) =>
+    ["ACTIVA", "EN_PROCESO"].includes(item.estado)
   ).length;
 
-  const closedProcesses = vacantes.filter(
-    (item) => item.estado === "CERRADA"
-  ).length;
-
-  const totalPendingRrhhApproved = postulaciones.filter(
+  const listosEvaluacion = postulaciones.filter(
     (item) => item.estado === "APROBADO_RRHH"
   ).length;
 
-  const statusClass = (status) => {
-    const styles = {
-      ACTIVA: "bg-sky-50 text-sky-700 border-sky-200",
-      EN_PROCESO: "bg-amber-50 text-amber-700 border-amber-200",
-      CERRADA: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    };
-
-    return styles[status] || "bg-slate-50 text-slate-600 border-slate-200";
-  };
+  const porRevisar = asignaciones.filter(
+    (item) => item.estado === "COMPLETADA"
+  ).length;
 
   return (
     <div>
       <SectionHeader
         title="Procesos técnicos"
-        description="Selecciona una vacante para revisar candidatos, asignar evaluaciones y controlar el avance técnico."
+        description="Selecciona una vacante para asignar evaluaciones, revisar resultados y elegir ganador."
       />
 
       {message && (
-        <div className="mb-5 border border-rose-200 bg-rose-50 text-rose-700 rounded-3xl px-5 py-4 font-semibold">
+        <div className="mb-5 border border-rose-200 bg-rose-50 text-rose-700 rounded-2xl px-4 py-3 text-sm font-semibold">
           {message}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-sm text-slate-500 font-semibold">
             Procesos activos
           </p>
-          <p className="text-4xl font-black text-sky-600 mt-2">
-            {activeProcesses}
+          <p className="text-3xl font-black text-emerald-600 mt-1">
+            {procesosActivos}
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-sm text-slate-500 font-semibold">
             Listos para evaluación
           </p>
-          <p className="text-4xl font-black text-emerald-600 mt-2">
-            {totalPendingRrhhApproved}
+          <p className="text-3xl font-black text-sky-600 mt-1">
+            {listosEvaluacion}
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
-          <p className="text-sm text-slate-500 font-semibold">
-            Procesos cerrados
-          </p>
-          <p className="text-4xl font-black text-slate-900 mt-2">
-            {closedProcesses}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-sm text-slate-500 font-semibold">Por revisar</p>
+          <p className="text-3xl font-black text-violet-600 mt-1">
+            {porRevisar}
           </p>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white border border-slate-200 rounded-[2rem] p-5 mb-8 grid grid-cols-1 md:grid-cols-[1fr_240px_auto] gap-4 shadow-sm">
-        <div className="flex items-center gap-3 border border-slate-300 rounded-2xl px-4 py-3 bg-white focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100">
+      <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_230px_auto] gap-3">
+        <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
           <Search size={18} className="text-emerald-600" />
+
           <input
             type="text"
             placeholder="Buscar por vacante, área o estado..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full outline-none bg-transparent text-slate-900"
+            className="w-full outline-none bg-transparent text-sm text-slate-900"
           />
         </div>
 
@@ -194,7 +192,7 @@ function TechnicalJobs() {
           onChange={(e) => setSelectedStatus(e.target.value)}
           className="input-light"
         >
-          <option value="Todos">Todos los estados</option>
+          <option value="Todos">Todos</option>
           <option value="ACTIVA">Activa</option>
           <option value="EN_PROCESO">En proceso</option>
           <option value="CERRADA">Cerrada</option>
@@ -203,129 +201,106 @@ function TechnicalJobs() {
         <button
           type="button"
           onClick={loadData}
-          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-3 rounded-2xl font-black"
+          className="inline-flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-black"
         >
-          <RefreshCw size={18} />
+          <RefreshCw size={17} />
           Actualizar
         </button>
-      </div>
+      </section>
 
       {loading ? (
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center shadow-sm">
-          <h2 className="text-2xl font-black text-slate-900">
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <h2 className="text-xl font-black text-slate-900">
             Cargando procesos...
           </h2>
-          <p className="text-slate-500 mt-2">
-            Consultando vacantes, postulaciones y evaluaciones.
-          </p>
         </div>
       ) : procesos.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center shadow-sm">
-          <Briefcase size={42} className="mx-auto text-emerald-600" />
-          <h2 className="text-2xl font-black text-slate-900 mt-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+          <Briefcase size={36} className="mx-auto text-emerald-600" />
+
+          <h2 className="text-xl font-black text-slate-900 mt-3">
             No hay procesos técnicos
           </h2>
-          <p className="text-slate-500 mt-2">
-            Cuando existan vacantes activas o en proceso, aparecerán aquí.
+
+          <p className="text-sm text-slate-500 mt-1">
+            Cuando existan vacantes activas o en proceso aparecerán aquí.
           </p>
         </div>
       ) : (
-        <div className="space-y-5">
-          {procesos.map((vacante) => {
-            const stats = getStatsByVacante(vacante.id);
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_0.8fr_140px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+            <span>Vacante</span>
+            <span>Listos</span>
+            <span>Evaluaciones</span>
+            <span>Por revisar</span>
+            <span>Estado</span>
+            <span className="text-right">Acción</span>
+          </div>
 
-            return (
-              <article
-                key={vacante.id}
-                className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm"
-              >
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+          <div className="divide-y divide-slate-200">
+            {procesos.map((vacante) => {
+              const stats = getStatsByVacante(vacante.id);
+
+              return (
+                <div
+                  key={vacante.id}
+                  className="grid grid-cols-1 lg:grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_0.8fr_140px] gap-4 px-5 py-4 items-center"
+                >
                   <div>
-                    <span className="inline-flex px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-black mb-3">
-                      {vacante.areaNombre}
-                    </span>
-
-                    <h3 className="text-2xl font-black text-slate-900">
+                    <p className="font-black text-slate-900">
                       {vacante.titulo}
-                    </h3>
-
-                    <p className="text-slate-500 mt-2 line-clamp-2">
-                      {vacante.descripcion}
                     </p>
+
+                    <p className="text-sm text-slate-500 mt-1">
+                      {vacante.areaNombre} · {stats.postulantes} candidato(s)
+                    </p>
+
+                    {stats.seleccionados > 0 && (
+                      <p className="text-xs text-amber-700 font-black mt-1">
+                        Ganador seleccionado
+                      </p>
+                    )}
                   </div>
 
-                  <span
-                    className={`inline-flex items-center justify-center px-4 py-2 rounded-full border text-sm font-black ${statusClass(
-                      vacante.estado
-                    )}`}
-                  >
-                    {vacante.estado}
-                  </span>
-                </div>
+                  <p className="inline-flex items-center gap-1 text-sm font-black text-slate-700">
+                    <Users size={15} className="text-emerald-600" />
+                    {stats.listos}
+                  </p>
 
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-6">
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                    <Users size={19} className="text-emerald-600" />
-                    <p className="text-xl font-black text-slate-900 mt-2">
-                      {stats.postulantes}
-                    </p>
-                    <p className="text-xs text-slate-500">Postulantes</p>
+                  <p className="inline-flex items-center gap-1 text-sm font-black text-slate-700">
+                    <FileQuestion size={15} className="text-emerald-600" />
+                    {stats.evaluaciones}
+                  </p>
+
+                  <p className="inline-flex items-center gap-1 text-sm font-black text-slate-700">
+                    <Clock size={15} className="text-violet-600" />
+                    {stats.porRevisar}
+                  </p>
+
+                  <div>
+                    <span
+                      className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                        vacante.estado
+                      )}`}
+                    >
+                      {getVacanteEstadoLabel(vacante.estado)}
+                    </span>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                    <CheckCircle2 size={19} className="text-emerald-600" />
-                    <p className="text-xl font-black text-slate-900 mt-2">
-                      {stats.aprobadosRrhh}
-                    </p>
-                    <p className="text-xs text-slate-500">Aprobados RRHH</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                    <FileQuestion size={19} className="text-emerald-600" />
-                    <p className="text-xl font-black text-slate-900 mt-2">
-                      {stats.evaluaciones}
-                    </p>
-                    <p className="text-xs text-slate-500">Evaluaciones</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                    <Clock size={19} className="text-emerald-600" />
-                    <p className="text-xl font-black text-slate-900 mt-2">
-                      {stats.enEvaluacion}
-                    </p>
-                    <p className="text-xs text-slate-500">En evaluación</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                    <CheckCircle2 size={19} className="text-emerald-600" />
-                    <p className="text-xl font-black text-slate-900 mt-2">
-                      {stats.aptosTecnicos}
-                    </p>
-                    <p className="text-xs text-slate-500">Aptos técnicos</p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                    <Trophy size={19} className="text-amber-600" />
-                    <p className="text-xl font-black text-slate-900 mt-2">
-                      {stats.seleccionados}
-                    </p>
-                    <p className="text-xs text-slate-500">Seleccionado</p>
+                  <div className="flex justify-start lg:justify-end">
+                    <Link
+                      to={`/technical/vacantes/${vacante.id}`}
+                      className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-black"
+                    >
+                      <CheckCircle2 size={16} />
+                      Ver proceso
+                    </Link>
                   </div>
                 </div>
-
-                <div className="mt-6 flex justify-end">
-                  <Link
-                    to={`/technical/vacantes/${vacante.id}`}
-                    className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white px-5 py-3 rounded-2xl font-black shadow-xl shadow-emerald-500/20"
-                  >
-                    <Briefcase size={18} />
-                    Ver proceso
-                  </Link>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </section>
       )}
     </div>
   );

@@ -14,47 +14,14 @@ import {
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { vacanteService } from "../../services/vacanteService.js";
-
-function getEstadoVisible(estado) {
-  const labels = {
-    ACTIVA: "Activa",
-    EN_PROCESO: "En proceso",
-    CERRADA: "Cerrada",
-    CANCELADA: "Cancelada",
-  };
-
-  return labels[estado] || estado || "Sin estado";
-}
-
-function statusClass(estado) {
-  const styles = {
-    ACTIVA: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    EN_PROCESO: "bg-amber-50 text-amber-700 border-amber-200",
-    CERRADA: "bg-slate-50 text-slate-600 border-slate-200",
-    CANCELADA: "bg-rose-50 text-rose-700 border-rose-200",
-  };
-
-  return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
-}
-
-function formatDate(value) {
-  if (!value) return "Sin fecha";
-
-  return new Date(`${value}T00:00:00`).toLocaleDateString("es-PE", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
-}
-
-function formatMoney(value) {
-  if (value === null || value === undefined) return "No especificado";
-
-  return Number(value).toLocaleString("es-PE", {
-    style: "currency",
-    currency: "PEN",
-  });
-}
+import {
+  formatDate,
+  formatMoney,
+  getModalidadLabel,
+  getNivelLabel,
+  getVacanteEstadoLabel,
+  statusClass,
+} from "../../utils/statusLabels.js";
 
 function RrhhJobs() {
   const [vacantes, setVacantes] = useState([]);
@@ -69,6 +36,15 @@ function RrhhJobs() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4000);
+  };
+
   const loadVacantes = async () => {
     try {
       setLoading(true);
@@ -81,7 +57,10 @@ function RrhhJobs() {
         setSelectedVacante(updated || null);
       }
     } catch (error) {
-      showMessage(error.userMessage || "No se pudieron cargar las vacantes.", "error");
+      showMessage(
+        error.userMessage || "No se pudieron cargar las vacantes.",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -95,7 +74,7 @@ function RrhhJobs() {
     const value = search.toLowerCase().trim();
 
     return vacantes.filter((vacante) => {
-      const estadoVisible = getEstadoVisible(vacante.estado).toLowerCase();
+      const estadoVisible = getVacanteEstadoLabel(vacante.estado).toLowerCase();
 
       const matchesSearch =
         vacante.titulo?.toLowerCase().includes(value) ||
@@ -112,16 +91,13 @@ function RrhhJobs() {
   }, [vacantes, search, selectedStatus]);
 
   const activas = vacantes.filter((item) => item.estado === "ACTIVA").length;
-  const enProceso = vacantes.filter((item) => item.estado === "EN_PROCESO").length;
+  const enProceso = vacantes.filter(
+    (item) => item.estado === "EN_PROCESO"
+  ).length;
   const cerradas = vacantes.filter((item) => item.estado === "CERRADA").length;
 
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4000);
+  const canCancel = (vacante) => {
+    return vacante.estado !== "CERRADA" && vacante.estado !== "CANCELADA";
   };
 
   const handleCancel = async (vacante) => {
@@ -133,19 +109,19 @@ function RrhhJobs() {
 
     try {
       setCancelingId(vacante.id);
+
       await vacanteService.cancel(vacante.id);
 
       showMessage("Vacante cancelada correctamente.", "success");
       await loadVacantes();
     } catch (error) {
-      showMessage(error.userMessage || "No se pudo cancelar la vacante.", "error");
+      showMessage(
+        error.userMessage || "No se pudo cancelar la vacante.",
+        "error"
+      );
     } finally {
       setCancelingId(null);
     }
-  };
-
-  const canCancel = (vacante) => {
-    return vacante.estado !== "CERRADA" && vacante.estado !== "CANCELADA";
   };
 
   const alertStyles = {
@@ -158,7 +134,7 @@ function RrhhJobs() {
     <div>
       <SectionHeader
         title="Vacantes"
-        description="Gestiona las vacantes publicadas para el proceso de reclutamiento."
+        description="Gestiona las vacantes publicadas de forma simple y ordenada."
         action={
           <Link
             to="/rrhh/vacantes/create"
@@ -204,6 +180,7 @@ function RrhhJobs() {
       <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3">
         <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-100">
           <Search size={18} className="text-amber-600" />
+
           <input
             type="text"
             placeholder="Buscar por título, área, modalidad o ubicación..."
@@ -240,57 +217,56 @@ function RrhhJobs() {
           <h2 className="text-xl font-black text-slate-900">
             Cargando vacantes...
           </h2>
-          <p className="text-slate-500 mt-1">Un momento por favor.</p>
         </div>
       ) : filteredVacantes.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
           <Briefcase size={36} className="mx-auto text-amber-600" />
+
           <h2 className="text-xl font-black text-slate-900 mt-3">
             No hay vacantes para mostrar
           </h2>
+
           <p className="text-sm text-slate-500 mt-1">
             Crea una nueva vacante o ajusta los filtros.
           </p>
         </div>
       ) : (
         <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="hidden lg:grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_170px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+          <div className="hidden lg:grid grid-cols-[1.5fr_1fr_0.8fr_0.8fr_180px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
             <span>Vacante</span>
             <span>Área</span>
             <span>Cierre</span>
             <span>Estado</span>
-            <span className="text-right">Acción</span>
+            <span className="text-right">Acciones</span>
           </div>
 
           <div className="divide-y divide-slate-200">
             {filteredVacantes.map((vacante) => (
               <div
                 key={vacante.id}
-                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr_0.8fr_0.8fr_170px] gap-4 px-5 py-4 items-center"
+                className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr_0.8fr_0.8fr_180px] gap-4 px-5 py-4 items-center"
               >
                 <div>
                   <p className="font-black text-slate-900">{vacante.titulo}</p>
+
                   <div className="flex flex-wrap gap-3 text-sm text-slate-500 mt-1">
                     <span className="inline-flex items-center gap-1">
                       <MapPin size={14} />
-                      {vacante.modalidad}
+                      {getModalidadLabel(vacante.modalidad)}
                     </span>
+
                     <span>{vacante.ubicacion || "Sin ubicación"}</span>
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-sm font-bold text-slate-800">
-                    {vacante.areaNombre}
-                  </p>
-                </div>
+                <p className="text-sm font-bold text-slate-800">
+                  {vacante.areaNombre}
+                </p>
 
-                <div>
-                  <p className="inline-flex items-center gap-1 text-sm text-slate-600">
-                    <Calendar size={15} />
-                    {formatDate(vacante.fechaCierre)}
-                  </p>
-                </div>
+                <p className="inline-flex items-center gap-1 text-sm text-slate-600">
+                  <Calendar size={15} />
+                  {formatDate(vacante.fechaCierre)}
+                </p>
 
                 <div>
                   <span
@@ -298,7 +274,7 @@ function RrhhJobs() {
                       vacante.estado
                     )}`}
                   >
-                    {getEstadoVisible(vacante.estado)}
+                    {getVacanteEstadoLabel(vacante.estado)}
                   </span>
                 </div>
 
@@ -359,6 +335,7 @@ function RrhhJobs() {
                     <h3 className="text-2xl font-black text-slate-900">
                       {selectedVacante.titulo}
                     </h3>
+
                     <p className="text-sm text-slate-500 mt-2">
                       {selectedVacante.descripcion}
                     </p>
@@ -369,7 +346,7 @@ function RrhhJobs() {
                       selectedVacante.estado
                     )}`}
                   >
-                    {getEstadoVisible(selectedVacante.estado)}
+                    {getVacanteEstadoLabel(selectedVacante.estado)}
                   </span>
                 </div>
               </section>
@@ -378,7 +355,7 @@ function RrhhJobs() {
                 <div className="border border-slate-200 rounded-xl p-4">
                   <p className="text-xs font-black text-slate-500">Modalidad</p>
                   <p className="text-sm font-bold text-slate-800 mt-1">
-                    {selectedVacante.modalidad}
+                    {getModalidadLabel(selectedVacante.modalidad)}
                   </p>
                   <p className="text-sm text-slate-500">
                     {selectedVacante.ubicacion || "Sin ubicación"}
@@ -397,7 +374,7 @@ function RrhhJobs() {
                     Experiencia
                   </p>
                   <p className="text-sm font-bold text-slate-800 mt-1">
-                    {selectedVacante.nivelExperiencia}
+                    {getNivelLabel(selectedVacante.nivelExperiencia)}
                   </p>
                 </div>
 
@@ -424,14 +401,14 @@ function RrhhJobs() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {selectedVacante.habilidades?.map((item) => (
                       <div
-                        key={item.id}
+                        key={item.id || item.habilidadId}
                         className="border border-slate-200 rounded-xl p-4"
                       >
                         <p className="font-black text-slate-900">
                           {item.habilidadNombre}
                         </p>
                         <p className="text-sm text-slate-500 mt-1">
-                          Nivel requerido: {item.nivelRequerido}
+                          Nivel requerido: {getNivelLabel(item.nivelRequerido)}
                         </p>
                         <p className="text-sm text-slate-500">
                           {item.obligatorio ? "Obligatoria" : "Deseable"}

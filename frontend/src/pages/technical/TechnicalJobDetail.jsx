@@ -7,12 +7,16 @@ import {
   Briefcase,
   CheckCircle2,
   Clock,
+  Eye,
   RefreshCw,
   Search,
   Send,
+  Star,
   Trophy,
   UserCheck,
+  UserX,
   Users,
+  X,
 } from "lucide-react";
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
@@ -20,6 +24,14 @@ import { vacanteService } from "../../services/vacanteService.js";
 import { postulacionService } from "../../services/postulacionService.js";
 import { evaluacionService } from "../../services/evaluacionService.js";
 import { evaluacionPostulacionService } from "../../services/evaluacionPostulacionService.js";
+import {
+  formatDateTime,
+  getEvaluacionEstadoLabel,
+  getEvaluacionPostulacionEstadoLabel,
+  getPostulacionEstadoLabel,
+  getVacanteEstadoLabel,
+  statusClass,
+} from "../../utils/statusLabels.js";
 
 function TechnicalJobDetail() {
   const { id } = useParams();
@@ -30,15 +42,28 @@ function TechnicalJobDetail() {
   const [asignaciones, setAsignaciones] = useState([]);
 
   const [selectedEvaluations, setSelectedEvaluations] = useState({});
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [reviewForms, setReviewForms] = useState({});
+
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("Todos");
 
   const [loading, setLoading] = useState(true);
   const [assigningId, setAssigningId] = useState(null);
+  const [reviewingId, setReviewingId] = useState(null);
   const [selectingWinnerId, setSelectingWinnerId] = useState(null);
 
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4000);
+  };
 
   const loadData = async () => {
     try {
@@ -56,14 +81,24 @@ function TechnicalJobDetail() {
         evaluacionPostulacionService.getAll(),
       ]);
 
+      const asignacionesVacante = asignacionesData.filter(
+        (item) => Number(item.vacanteId) === Number(id)
+      );
+
       setVacante(vacanteData);
       setPostulaciones(postulacionesData);
       setEvaluaciones(evaluacionesData);
-      setAsignaciones(
-        asignacionesData.filter(
-          (item) => Number(item.vacanteId) === Number(id)
-        )
-      );
+      setAsignaciones(asignacionesVacante);
+
+      const initialForms = {};
+      asignacionesVacante.forEach((item) => {
+        initialForms[item.id] = {
+          puntajeObtenido: item.puntajeObtenido ?? "",
+          comentarioTecnico: item.comentarioTecnico || "",
+        };
+      });
+
+      setReviewForms(initialForms);
     } catch (error) {
       showMessage(
         error.userMessage || "No se pudo cargar el proceso técnico.",
@@ -82,55 +117,13 @@ function TechnicalJobDetail() {
     return evaluaciones.filter((item) => item.estado === "ACTIVA");
   }, [evaluaciones]);
 
-  const getEstadoVisible = (estado) => {
-    const labels = {
-      POSTULADO: "Postulado",
-      EN_REVISION_RRHH: "En revisión",
-      APROBADO_RRHH: "Listo para evaluación",
-      RECHAZADO_RRHH: "No continúa",
-      EVALUACION_PENDIENTE: "Evaluación asignada",
-      EVALUACION_COMPLETADA: "Por revisar",
-      APROBADO_TECNICO: "Apto para selección",
-      RECHAZADO_TECNICO: "No continúa",
-      SELECCIONADO: "Seleccionado",
-      NO_SELECCIONADO: "No seleccionado",
-    };
-
-    return labels[estado] || estado || "Sin estado";
-  };
-
-  const statusClass = (estado) => {
-    const styles = {
-      POSTULADO: "bg-slate-50 text-slate-600 border-slate-200",
-      EN_REVISION_RRHH: "bg-sky-50 text-sky-700 border-sky-200",
-      APROBADO_RRHH: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      RECHAZADO_RRHH: "bg-rose-50 text-rose-700 border-rose-200",
-      EVALUACION_PENDIENTE: "bg-indigo-50 text-indigo-700 border-indigo-200",
-      EVALUACION_COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
-      APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
-      SELECCIONADO: "bg-amber-50 text-amber-700 border-amber-200",
-      NO_SELECCIONADO: "bg-slate-50 text-slate-600 border-slate-200",
-    };
-
-    return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
-  };
-
-  const formatDateTime = (value) => {
-    if (!value) return "Sin fecha";
-
-    return new Date(value).toLocaleString("es-PE", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
-  };
-
-
   const candidatosFiltrados = useMemo(() => {
     const value = search.toLowerCase().trim();
 
     return postulaciones.filter((postulacion) => {
-      const estadoVisible = getEstadoVisible(postulacion.estado).toLowerCase();
+      const estadoVisible = getPostulacionEstadoLabel(
+        postulacion.estado
+      ).toLowerCase();
 
       const matchesSearch =
         postulacion.postulanteNombre?.toLowerCase().includes(value) ||
@@ -152,21 +145,15 @@ function TechnicalJobDetail() {
       enEvaluacion: postulaciones.filter((item) =>
         ["EVALUACION_PENDIENTE", "EVALUACION_COMPLETADA"].includes(item.estado)
       ).length,
+      porRevisar: asignaciones.filter((item) => item.estado === "COMPLETADA")
+        .length,
       aptos: postulaciones.filter((item) => item.estado === "APROBADO_TECNICO")
         .length,
-      seleccionado: postulaciones.filter((item) => item.estado === "SELECCIONADO")
-        .length,
+      seleccionado: postulaciones.filter(
+        (item) => item.estado === "SELECCIONADO"
+      ).length,
     };
-  }, [postulaciones]);
-
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4000);
-  };
+  }, [postulaciones, asignaciones]);
 
   const getAsignacionByPostulacion = (postulacionId) => {
     return asignaciones.find(
@@ -215,6 +202,94 @@ function TechnicalJobDetail() {
     }
   };
 
+  const openReviewModal = (asignacion, postulacion) => {
+    setSelectedAssignment({
+      ...asignacion,
+      postulacion,
+    });
+  };
+
+  const handleReviewFormChange = (id, field, value) => {
+    if (field === "puntajeObtenido") {
+      const validNumber = value === "" || /^\d*\.?\d{0,2}$/.test(value);
+
+      if (!validNumber) return;
+    }
+
+    setReviewForms((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        [field]: value,
+      },
+    }));
+  };
+
+  const validateReview = (asignacion) => {
+    const form = reviewForms[asignacion.id] || {};
+    const puntaje = Number(form.puntajeObtenido);
+
+    if (form.puntajeObtenido === "" || form.puntajeObtenido === null) {
+      return "Ingresa el puntaje final.";
+    }
+
+    if (Number.isNaN(puntaje)) {
+      return "El puntaje debe ser un número válido.";
+    }
+
+    if (puntaje < 0) {
+      return "El puntaje no puede ser negativo.";
+    }
+
+    if (!form.comentarioTecnico?.trim()) {
+      return "Agrega un comentario técnico breve.";
+    }
+
+    if (form.comentarioTecnico.trim().length < 5) {
+      return "El comentario debe tener al menos 5 caracteres.";
+    }
+
+    return null;
+  };
+
+  const handleTechnicalReview = async (asignacion, approved) => {
+    const validationError = validateReview(asignacion);
+
+    if (validationError) {
+      showMessage(validationError, "error");
+      return;
+    }
+
+    const form = reviewForms[asignacion.id];
+
+    try {
+      setReviewingId(asignacion.id);
+
+      await evaluacionPostulacionService.review(asignacion.id, {
+        aprobado: approved,
+        puntajeObtenido: Number(form.puntajeObtenido),
+        comentarioTecnico: form.comentarioTecnico.trim(),
+      });
+
+      showMessage(
+        approved
+          ? "Postulante aprobado técnicamente."
+          : "Postulante rechazado técnicamente.",
+        "success"
+      );
+
+      setSelectedAssignment(null);
+      await loadData();
+    } catch (error) {
+      showMessage(
+        error.userMessage || "No se pudo registrar la revisión.",
+        "error"
+      );
+    } finally {
+      setReviewingId(null);
+    }
+  };
+
   const handleSelectWinner = async (postulacion) => {
     const confirmed = window.confirm(
       `¿Seleccionar a "${postulacion.postulanteNombre}" como ganador de la vacante "${vacante.titulo}"?`
@@ -240,7 +315,23 @@ function TechnicalJobDetail() {
     }
   };
 
+  const answerClass = (answer) => {
+    if (answer.esCorrecta === true) {
+      return "text-emerald-700 bg-emerald-50 border-emerald-200";
+    }
 
+    if (answer.esCorrecta === false) {
+      return "text-rose-700 bg-rose-50 border-rose-200";
+    }
+
+    return "text-slate-600 bg-slate-50 border-slate-200";
+  };
+
+  const answerLabel = (answer) => {
+    if (answer.esCorrecta === true) return "Correcta";
+    if (answer.esCorrecta === false) return "Incorrecta";
+    return "Abierta";
+  };
 
   const alertStyles = {
     info: "bg-sky-50 border-sky-200 text-sky-700",
@@ -288,7 +379,7 @@ function TechnicalJobDetail() {
     <div>
       <SectionHeader
         title="Proceso técnico"
-        description="Revisa los candidatos de esta vacante y asigna evaluaciones cuando corresponda."
+        description="Revisa candidatos, asigna evaluaciones, corrige resultados y selecciona ganador."
         action={
           <button
             type="button"
@@ -333,8 +424,12 @@ function TechnicalJobDetail() {
             </p>
           </div>
 
-          <span className="inline-flex px-3 py-1.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200 text-xs font-black">
-            {vacante.estado}
+          <span
+            className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+              vacante.estado
+            )}`}
+          >
+            {getVacanteEstadoLabel(vacante.estado)}
           </span>
         </div>
       </section>
@@ -365,11 +460,11 @@ function TechnicalJobDetail() {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
-          <CheckCircle2 size={18} className="text-emerald-600" />
+          <Eye size={18} className="text-violet-600" />
           <p className="text-2xl font-black text-slate-900 mt-1">
-            {stats.aptos}
+            {stats.porRevisar}
           </p>
-          <p className="text-xs text-slate-500">Aptos</p>
+          <p className="text-xs text-slate-500">Por revisar</p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
@@ -385,6 +480,7 @@ function TechnicalJobDetail() {
         <div className="grid grid-cols-1 md:grid-cols-[1fr_230px] gap-3">
           <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
             <Search size={18} className="text-emerald-600" />
+
             <input
               type="text"
               placeholder="Buscar candidato o correo..."
@@ -412,7 +508,7 @@ function TechnicalJobDetail() {
       </section>
 
       <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[1.4fr_1fr_1fr_1fr_250px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+        <div className="hidden lg:grid grid-cols-[1.4fr_1fr_1fr_0.8fr_280px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
           <span>Candidato</span>
           <span>Estado</span>
           <span>Evaluación</span>
@@ -423,9 +519,11 @@ function TechnicalJobDetail() {
         {candidatosFiltrados.length === 0 ? (
           <div className="p-8 text-center">
             <Briefcase size={34} className="mx-auto text-emerald-600" />
+
             <h2 className="text-xl font-black text-slate-900 mt-3">
               No hay candidatos para mostrar
             </h2>
+
             <p className="text-sm text-slate-500 mt-1">
               Ajusta los filtros o espera nuevas postulaciones.
             </p>
@@ -434,14 +532,16 @@ function TechnicalJobDetail() {
           <div className="divide-y divide-slate-200">
             {candidatosFiltrados.map((postulacion) => {
               const asignacion = getAsignacionByPostulacion(postulacion.id);
+
               const puedeAsignar = postulacion.estado === "APROBADO_RRHH";
-              const puedeSeleccionar = postulacion.estado === "APROBADO_TECNICO";
               const debeRevisar = postulacion.estado === "EVALUACION_COMPLETADA";
+              const puedeSeleccionar =
+                postulacion.estado === "APROBADO_TECNICO";
 
               return (
                 <div
                   key={postulacion.id}
-                  className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr_1fr_1fr_250px] gap-4 px-5 py-4 items-center"
+                  className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr_1fr_0.8fr_280px] gap-4 px-5 py-4 items-center"
                 >
                   <div>
                     <p className="font-black text-slate-900">
@@ -461,7 +561,7 @@ function TechnicalJobDetail() {
                         postulacion.estado
                       )}`}
                     >
-                      {getEstadoVisible(postulacion.estado)}
+                      {getPostulacionEstadoLabel(postulacion.estado)}
                     </span>
                   </div>
 
@@ -469,15 +569,17 @@ function TechnicalJobDetail() {
                     <p className="text-sm font-bold text-slate-800">
                       {asignacion?.evaluacionTitulo || "Sin asignar"}
                     </p>
-                    {asignacion?.fechaAsignacion && (
-                      <p className="text-xs text-slate-400 mt-1">
-                        {formatDateTime(asignacion.fechaAsignacion)}
+
+                    {asignacion?.estado && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {getEvaluacionPostulacionEstadoLabel(asignacion.estado)}
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <p className="text-sm font-black text-slate-800">
+                    <p className="inline-flex items-center gap-1 text-sm font-black text-slate-800">
+                      <Star size={15} className="text-amber-500" />
                       {asignacion?.puntajeObtenido ?? "Pendiente"}
                     </p>
                   </div>
@@ -518,14 +620,15 @@ function TechnicalJobDetail() {
                       </>
                     )}
 
-                    {debeRevisar && (
-                      <Link
-                        to="/technical/resultados"
-                        className="inline-flex items-center justify-center gap-1.5 border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-xl text-sm font-bold"
+                    {debeRevisar && asignacion && (
+                      <button
+                        type="button"
+                        onClick={() => openReviewModal(asignacion, postulacion)}
+                        className="inline-flex items-center justify-center gap-1.5 border border-violet-200 bg-violet-50 hover:bg-violet-100 text-violet-700 px-3 py-2 rounded-xl text-sm font-bold"
                       >
                         <BookOpenCheck size={15} />
                         Revisar
-                      </Link>
+                      </button>
                     )}
 
                     {puedeSeleccionar && (
@@ -536,7 +639,7 @@ function TechnicalJobDetail() {
                         className="inline-flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 text-white px-3 py-2 rounded-xl text-sm font-bold"
                       >
                         <Award size={15} />
-                        Seleccionar
+                        Ganador
                       </button>
                     )}
 
@@ -560,8 +663,7 @@ function TechnicalJobDetail() {
               Evaluaciones de esta vacante
             </h2>
             <p className="text-sm text-slate-500">
-              Estas son las evaluaciones disponibles para asignar a los
-              candidatos de este proceso.
+              Evaluaciones disponibles para asignar a los candidatos.
             </p>
           </div>
 
@@ -592,14 +694,205 @@ function TechnicalJobDetail() {
                   {evaluacion.preguntas?.length || 0} pregunta(s) ·{" "}
                   {evaluacion.duracionMinutos} min
                 </p>
-                <span className="inline-flex mt-3 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-xs font-black text-slate-600">
-                  {evaluacion.estado}
+                <span
+                  className={`inline-flex mt-3 px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                    evaluacion.estado
+                  )}`}
+                >
+                  {getEvaluacionEstadoLabel(evaluacion.estado)}
                 </span>
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {selectedAssignment && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center px-4 py-8">
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-xl">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  Revisar evaluación
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {selectedAssignment.postulacion?.postulanteNombre} ·{" "}
+                  {selectedAssignment.evaluacionTitulo}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedAssignment(null)}
+                className="w-9 h-9 rounded-xl border border-slate-300 hover:bg-slate-50 flex items-center justify-center text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">Candidato</p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {selectedAssignment.postulacion?.postulanteNombre}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {selectedAssignment.postulacion?.postulanteCorreo}
+                  </p>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">
+                    Evaluación
+                  </p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {selectedAssignment.evaluacionTitulo}
+                  </p>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <p className="text-xs font-black text-slate-500">
+                    Puntaje actual
+                  </p>
+                  <p className="text-sm font-bold text-slate-800 mt-1">
+                    {selectedAssignment.puntajeObtenido ?? 0}
+                  </p>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="font-black text-slate-900 mb-3">Respuestas</h3>
+
+                {selectedAssignment.respuestas?.length === 0 ||
+                !selectedAssignment.respuestas ? (
+                  <div className="border border-slate-200 rounded-xl p-4 text-slate-500">
+                    No hay respuestas registradas.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedAssignment.respuestas.map((answer, index) => (
+                      <div
+                        key={answer.id || index}
+                        className="border border-slate-200 rounded-xl p-4"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black text-slate-500">
+                              Pregunta {index + 1}
+                            </p>
+                            <p className="font-bold text-slate-900 mt-1">
+                              {answer.preguntaEnunciado}
+                            </p>
+                          </div>
+
+                          <span
+                            className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${answerClass(
+                              answer
+                            )}`}
+                          >
+                            {answerLabel(answer)}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-slate-700 mt-3 whitespace-pre-wrap">
+                          {answer.opcionTexto ||
+                            answer.respuestaTexto ||
+                            "Sin respuesta"}
+                        </p>
+
+                        <p className="text-xs text-slate-500 mt-3">
+                          Puntaje obtenido:{" "}
+                          <strong>{answer.puntajeObtenido ?? 0}</strong>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="border border-slate-200 rounded-xl p-4">
+                <h3 className="font-black text-slate-900 mb-3">
+                  Revisión técnica
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] gap-3">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      Puntaje final
+                    </label>
+
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={
+                        reviewForms[selectedAssignment.id]?.puntajeObtenido ||
+                        ""
+                      }
+                      onChange={(e) =>
+                        handleReviewFormChange(
+                          selectedAssignment.id,
+                          "puntajeObtenido",
+                          e.target.value
+                        )
+                      }
+                      className="input-light"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                      Comentario
+                    </label>
+
+                    <textarea
+                      value={
+                        reviewForms[selectedAssignment.id]?.comentarioTecnico ||
+                        ""
+                      }
+                      onChange={(e) =>
+                        handleReviewFormChange(
+                          selectedAssignment.id,
+                          "comentarioTecnico",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Comentario breve sobre el resultado técnico."
+                      className="w-full min-h-24 border border-slate-300 rounded-xl p-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-2 mt-4">
+                  <button
+                    type="button"
+                    disabled={reviewingId === selectedAssignment.id}
+                    onClick={() =>
+                      handleTechnicalReview(selectedAssignment, true)
+                    }
+                    className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white px-4 py-2.5 rounded-xl text-sm font-black"
+                  >
+                    <UserCheck size={17} />
+                    Aprobar técnico
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={reviewingId === selectedAssignment.id}
+                    onClick={() =>
+                      handleTechnicalReview(selectedAssignment, false)
+                    }
+                    className="inline-flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white px-4 py-2.5 rounded-xl text-sm font-black"
+                  >
+                    <UserX size={17} />
+                    Rechazar técnico
+                  </button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

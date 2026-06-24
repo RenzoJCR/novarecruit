@@ -11,49 +11,12 @@ import {
 
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { postulacionService } from "../../services/postulacionService.js";
-
-function getEstadoVisible(estado) {
-  const labels = {
-    POSTULADO: "Pendiente",
-    EN_REVISION_RRHH: "En revisión",
-    APROBADO_RRHH: "Listo para evaluación",
-    RECHAZADO_RRHH: "No continúa",
-    EVALUACION_PENDIENTE: "En evaluación",
-    EVALUACION_COMPLETADA: "Evaluación completada",
-    APROBADO_TECNICO: "Apto para selección",
-    RECHAZADO_TECNICO: "No continúa",
-    SELECCIONADO: "Seleccionado",
-    NO_SELECCIONADO: "No seleccionado",
-  };
-
-  return labels[estado] || estado || "Sin estado";
-}
-
-function statusClass(estado) {
-  const styles = {
-    POSTULADO: "bg-amber-50 text-amber-700 border-amber-200",
-    EN_REVISION_RRHH: "bg-sky-50 text-sky-700 border-sky-200",
-    APROBADO_RRHH: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    RECHAZADO_RRHH: "bg-rose-50 text-rose-700 border-rose-200",
-    EVALUACION_PENDIENTE: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    EVALUACION_COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
-    APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
-    SELECCIONADO: "bg-amber-50 text-amber-700 border-amber-200",
-    NO_SELECCIONADO: "bg-slate-50 text-slate-600 border-slate-200",
-  };
-
-  return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
-}
-
-function formatDateTime(value) {
-  if (!value) return "Sin fecha";
-
-  return new Date(value).toLocaleString("es-PE", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
+import {
+  formatDateTime,
+  getNivelLabel,
+  getPostulacionEstadoLabel,
+  statusClass,
+} from "../../utils/statusLabels.js";
 
 function canReview(estado) {
   return ["POSTULADO", "EN_REVISION_RRHH"].includes(estado);
@@ -122,7 +85,9 @@ function RrhhApplications() {
     const value = search.toLowerCase().trim();
 
     return postulaciones.filter((item) => {
-      const estadoVisible = getEstadoVisible(item.estado).toLowerCase();
+      const estadoVisible = getPostulacionEstadoLabel(
+        item.estado
+      ).toLowerCase();
 
       const matchesSearch =
         item.postulanteNombre?.toLowerCase().includes(value) ||
@@ -142,12 +107,14 @@ function RrhhApplications() {
     ["POSTULADO", "EN_REVISION_RRHH"].includes(item.estado)
   ).length;
 
-  const aprobadas = postulaciones.filter(
+  const listasEvaluacion = postulaciones.filter(
     (item) => item.estado === "APROBADO_RRHH"
   ).length;
 
-  const rechazadas = postulaciones.filter(
-    (item) => item.estado === "RECHAZADO_RRHH"
+  const noContinuan = postulaciones.filter((item) =>
+    ["RECHAZADO_RRHH", "RECHAZADO_TECNICO", "NO_SELECCIONADO"].includes(
+      item.estado
+    )
   ).length;
 
   const handleReviewFormChange = (id, value) => {
@@ -165,6 +132,10 @@ function RrhhApplications() {
 
     if (!form.comentarioRrhh?.trim()) {
       return "Agrega un comentario breve para sustentar la decisión.";
+    }
+
+    if (form.comentarioRrhh.trim().length < 5) {
+      return "El comentario debe tener al menos 5 caracteres.";
     }
 
     return null;
@@ -216,7 +187,7 @@ function RrhhApplications() {
     <div>
       <SectionHeader
         title="Postulaciones"
-        description="Revisa candidatos postulados y decide quiénes pasan a evaluación técnica."
+        description="Revisa candidatos y decide quiénes pasan a evaluación técnica."
       />
 
       {message && (
@@ -240,14 +211,14 @@ function RrhhApplications() {
             Listas para evaluación
           </p>
           <p className="text-3xl font-black text-emerald-600 mt-1">
-            {aprobadas}
+            {listasEvaluacion}
           </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-sm text-slate-500 font-semibold">No continúan</p>
           <p className="text-3xl font-black text-rose-600 mt-1">
-            {rechazadas}
+            {noContinuan}
           </p>
         </div>
       </section>
@@ -255,6 +226,7 @@ function RrhhApplications() {
       <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_230px_auto] gap-3">
         <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-100">
           <Search size={18} className="text-amber-600" />
+
           <input
             type="text"
             placeholder="Buscar candidato, correo, vacante o área..."
@@ -274,8 +246,8 @@ function RrhhApplications() {
           <option value="EN_REVISION_RRHH">En revisión</option>
           <option value="APROBADO_RRHH">Listos para evaluación</option>
           <option value="RECHAZADO_RRHH">No continúan</option>
-          <option value="EVALUACION_PENDIENTE">En evaluación</option>
-          <option value="EVALUACION_COMPLETADA">Evaluación completada</option>
+          <option value="EVALUACION_PENDIENTE">Evaluación asignada</option>
+          <option value="EVALUACION_COMPLETADA">Por revisar</option>
           <option value="SELECCIONADO">Seleccionados</option>
         </select>
 
@@ -294,20 +266,20 @@ function RrhhApplications() {
           <h2 className="text-xl font-black text-slate-900">
             Cargando postulaciones...
           </h2>
-          <p className="text-slate-500 mt-1">Un momento por favor.</p>
         </div>
       ) : filteredPostulaciones.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
           <h2 className="text-xl font-black text-slate-900">
             No hay postulaciones para mostrar
           </h2>
+
           <p className="text-sm text-slate-500 mt-1">
             Ajusta los filtros o espera nuevas postulaciones.
           </p>
         </div>
       ) : (
         <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="hidden lg:grid grid-cols-[1.4fr_1.2fr_1fr_1fr_170px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+          <div className="hidden lg:grid grid-cols-[1.4fr_1.3fr_1fr_1fr_120px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
             <span>Candidato</span>
             <span>Vacante</span>
             <span>Área</span>
@@ -319,7 +291,7 @@ function RrhhApplications() {
             {filteredPostulaciones.map((postulacion) => (
               <div
                 key={postulacion.id}
-                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.2fr_1fr_1fr_170px] gap-4 px-5 py-4 items-center"
+                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.3fr_1fr_1fr_120px] gap-4 px-5 py-4 items-center"
               >
                 <div>
                   <p className="font-black text-slate-900">
@@ -333,17 +305,13 @@ function RrhhApplications() {
                   </p>
                 </div>
 
-                <div>
-                  <p className="font-bold text-slate-800">
-                    {postulacion.vacanteTitulo}
-                  </p>
-                </div>
+                <p className="font-bold text-slate-800">
+                  {postulacion.vacanteTitulo}
+                </p>
 
-                <div>
-                  <p className="text-sm text-slate-600">
-                    {postulacion.areaNombre}
-                  </p>
-                </div>
+                <p className="text-sm text-slate-600">
+                  {postulacion.areaNombre}
+                </p>
 
                 <div>
                   <span
@@ -351,7 +319,7 @@ function RrhhApplications() {
                       postulacion.estado
                     )}`}
                   >
-                    {getEstadoVisible(postulacion.estado)}
+                    {getPostulacionEstadoLabel(postulacion.estado)}
                   </span>
                 </div>
 
@@ -437,7 +405,7 @@ function RrhhApplications() {
                           {item.habilidadNombre}
                         </p>
                         <p className="text-sm text-slate-500 mt-1">
-                          Nivel: {item.nivelPostulante}
+                          Nivel: {getNivelLabel(item.nivelPostulante)}
                         </p>
                         <p className="text-sm text-slate-500">
                           Experiencia: {item.aniosExperiencia || 0} año(s)
@@ -453,15 +421,13 @@ function RrhhApplications() {
                   Revisión de RRHH
                 </h3>
 
-                <div className="mb-4">
-                  <span
-                    className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClass(
-                      selectedApplication.estado
-                    )}`}
-                  >
-                    {getEstadoVisible(selectedApplication.estado)}
-                  </span>
-                </div>
+                <span
+                  className={`inline-flex mb-4 px-3 py-1 rounded-full border text-xs font-black ${statusClass(
+                    selectedApplication.estado
+                  )}`}
+                >
+                  {getPostulacionEstadoLabel(selectedApplication.estado)}
+                </span>
 
                 <label className="block text-sm font-bold text-slate-700 mb-2">
                   Comentario
@@ -518,9 +484,9 @@ function RrhhApplications() {
                       size={20}
                       className="text-slate-500 shrink-0 mt-1"
                     />
+
                     <p className="text-sm text-slate-600">
-                      Esta postulación ya fue revisada o avanzó a otra etapa del
-                      proceso.
+                      Esta postulación ya fue revisada o avanzó a otra etapa.
                     </p>
                   </div>
                 )}

@@ -15,6 +15,12 @@ import {
 import SectionHeader from "../../components/ui/SectionHeader.jsx";
 import { evaluacionPostulacionService } from "../../services/evaluacionPostulacionService.js";
 import { vacanteService } from "../../services/vacanteService.js";
+import {
+  formatDateTime,
+  getEvaluacionPostulacionEstadoLabel,
+  getPostulacionEstadoLabel,
+  statusClass,
+} from "../../utils/statusLabels.js";
 
 function TechnicalResults() {
   const [results, setResults] = useState([]);
@@ -31,6 +37,15 @@ function TechnicalResults() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
 
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4000);
+  };
+
   const loadResults = async () => {
     try {
       setLoading(true);
@@ -44,7 +59,6 @@ function TechnicalResults() {
       setResults(visibleResults);
 
       const initialForms = {};
-
       visibleResults.forEach((item) => {
         initialForms[item.id] = {
           puntajeObtenido: item.puntajeObtenido ?? "",
@@ -78,11 +92,21 @@ function TechnicalResults() {
     const value = search.toLowerCase().trim();
 
     return results.filter((item) => {
+      const evaluacionEstado = getEvaluacionPostulacionEstadoLabel(
+        item.estado
+      ).toLowerCase();
+
+      const postulacionEstado = getPostulacionEstadoLabel(
+        item.postulacionEstado
+      ).toLowerCase();
+
       const matchesSearch =
         item.postulanteNombre?.toLowerCase().includes(value) ||
         item.postulanteCorreo?.toLowerCase().includes(value) ||
         item.vacanteTitulo?.toLowerCase().includes(value) ||
-        item.evaluacionTitulo?.toLowerCase().includes(value);
+        item.evaluacionTitulo?.toLowerCase().includes(value) ||
+        evaluacionEstado.includes(value) ||
+        postulacionEstado.includes(value);
 
       const matchesStatus =
         selectedStatus === "Todos" ||
@@ -97,24 +121,19 @@ function TechnicalResults() {
     (item) => item.estado === "COMPLETADA"
   ).length;
 
-  const aprobadosTecnicos = results.filter(
-    (item) => item.postulacionEstado === "APROBADO_TECNICO"
-  ).length;
+  const revisadas = results.filter((item) => item.estado === "REVISADA").length;
 
   const seleccionados = results.filter(
     (item) => item.postulacionEstado === "SELECCIONADO"
   ).length;
 
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4000);
-  };
-
   const handleReviewFormChange = (id, field, value) => {
+    if (field === "puntajeObtenido") {
+      const validNumber = value === "" || /^\d*\.?\d{0,2}$/.test(value);
+
+      if (!validNumber) return;
+    }
+
     setReviewForms((prev) => ({
       ...prev,
       [id]: {
@@ -126,17 +145,26 @@ function TechnicalResults() {
 
   const validateReview = (item) => {
     const form = reviewForms[item.id] || {};
+    const puntaje = Number(form.puntajeObtenido);
 
     if (form.puntajeObtenido === "" || form.puntajeObtenido === null) {
       return "Ingresa el puntaje final.";
     }
 
-    if (Number(form.puntajeObtenido) < 0) {
+    if (Number.isNaN(puntaje)) {
+      return "El puntaje debe ser un número válido.";
+    }
+
+    if (puntaje < 0) {
       return "El puntaje no puede ser negativo.";
     }
 
     if (!form.comentarioTecnico?.trim()) {
       return "Agrega un comentario técnico breve.";
+    }
+
+    if (form.comentarioTecnico.trim().length < 5) {
+      return "El comentario debe tener al menos 5 caracteres.";
     }
 
     return null;
@@ -168,6 +196,7 @@ function TechnicalResults() {
         "success"
       );
 
+      setSelectedResult(null);
       await loadResults();
     } catch (error) {
       showMessage(
@@ -211,28 +240,6 @@ function TechnicalResults() {
     );
   };
 
-  const formatDateTime = (value) => {
-    if (!value) return "Sin fecha";
-
-    return new Date(value).toLocaleString("es-PE", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
-  };
-
-  const statusClass = (status) => {
-    const styles = {
-      COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
-      REVISADA: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      APROBADO_TECNICO: "bg-emerald-50 text-emerald-700 border-emerald-200",
-      RECHAZADO_TECNICO: "bg-rose-50 text-rose-700 border-rose-200",
-      SELECCIONADO: "bg-amber-50 text-amber-700 border-amber-200",
-      NO_SELECCIONADO: "bg-slate-50 text-slate-600 border-slate-200",
-    };
-
-    return styles[status] || "bg-slate-50 text-slate-600 border-slate-200";
-  };
-
   const answerClass = (answer) => {
     if (answer.esCorrecta === true) {
       return "text-emerald-700 bg-emerald-50 border-emerald-200";
@@ -261,7 +268,7 @@ function TechnicalResults() {
     <div>
       <SectionHeader
         title="Resultados técnicos"
-        description="Revisa evaluaciones completadas, aprueba o rechaza postulantes y selecciona al ganador final."
+        description="Consulta evaluaciones completadas, revisa resultados y selecciona ganador."
       />
 
       {message && (
@@ -272,7 +279,7 @@ function TechnicalResults() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-sm text-slate-500 font-semibold">Por revisar</p>
           <p className="text-3xl font-black text-violet-600 mt-1">
@@ -281,11 +288,9 @@ function TechnicalResults() {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
-          <p className="text-sm text-slate-500 font-semibold">
-            Aptos técnicos
-          </p>
+          <p className="text-sm text-slate-500 font-semibold">Revisadas</p>
           <p className="text-3xl font-black text-emerald-600 mt-1">
-            {aprobadosTecnicos}
+            {revisadas}
           </p>
         </div>
 
@@ -295,11 +300,12 @@ function TechnicalResults() {
             {seleccionados}
           </p>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_230px_auto] gap-3">
+      <section className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 grid grid-cols-1 md:grid-cols-[1fr_230px_auto] gap-3">
         <div className="flex items-center gap-3 border border-slate-300 rounded-xl px-4 py-2.5 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100">
           <Search size={18} className="text-emerald-600" />
+
           <input
             type="text"
             placeholder="Buscar postulante, correo, vacante o evaluación..."
@@ -317,8 +323,8 @@ function TechnicalResults() {
           <option value="Todos">Todos</option>
           <option value="COMPLETADA">Por revisar</option>
           <option value="REVISADA">Revisada</option>
-          <option value="APROBADO_TECNICO">Aprobado técnico</option>
-          <option value="RECHAZADO_TECNICO">Rechazado técnico</option>
+          <option value="APROBADO_TECNICO">Apto para selección</option>
+          <option value="RECHAZADO_TECNICO">No continúa</option>
           <option value="SELECCIONADO">Seleccionado</option>
           <option value="NO_SELECCIONADO">No seleccionado</option>
         </select>
@@ -331,27 +337,27 @@ function TechnicalResults() {
           <RefreshCw size={17} />
           Actualizar
         </button>
-      </div>
+      </section>
 
       {loading ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
           <h2 className="text-xl font-black text-slate-900">
             Cargando resultados...
           </h2>
-          <p className="text-slate-500 mt-1">Un momento por favor.</p>
         </div>
       ) : filteredResults.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
           <h2 className="text-xl font-black text-slate-900">
             No hay resultados disponibles
           </h2>
+
           <p className="text-slate-500 mt-1">
             Cuando un postulante envíe una evaluación, aparecerá aquí.
           </p>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="hidden lg:grid grid-cols-[1.5fr_1.3fr_1fr_0.8fr_220px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[1.4fr_1.4fr_1fr_0.8fr_210px] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase">
             <span>Postulante</span>
             <span>Vacante / Evaluación</span>
             <span>Estado</span>
@@ -363,7 +369,7 @@ function TechnicalResults() {
             {filteredResults.map((item) => (
               <div
                 key={item.id}
-                className="grid grid-cols-1 lg:grid-cols-[1.5fr_1.3fr_1fr_0.8fr_220px] gap-4 px-5 py-4 items-center"
+                className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.4fr_1fr_0.8fr_210px] gap-4 px-5 py-4 items-center"
               >
                 <div>
                   <p className="font-black text-slate-900">
@@ -392,7 +398,7 @@ function TechnicalResults() {
                       item.estado
                     )}`}
                   >
-                    {item.estado}
+                    {getEvaluacionPostulacionEstadoLabel(item.estado)}
                   </span>
 
                   {item.postulacionEstado && (
@@ -401,7 +407,7 @@ function TechnicalResults() {
                         item.postulacionEstado
                       )}`}
                     >
-                      {item.postulacionEstado}
+                      {getPostulacionEstadoLabel(item.postulacionEstado)}
                     </span>
                   )}
                 </div>
@@ -436,7 +442,7 @@ function TechnicalResults() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {selectedResult && (
@@ -491,19 +497,18 @@ function TechnicalResults() {
               </section>
 
               <section>
-                <h3 className="font-black text-slate-900 mb-3">
-                  Respuestas
-                </h3>
+                <h3 className="font-black text-slate-900 mb-3">Respuestas</h3>
 
-                {selectedResult.respuestas?.length === 0 ? (
+                {selectedResult.respuestas?.length === 0 ||
+                !selectedResult.respuestas ? (
                   <div className="border border-slate-200 rounded-xl p-4 text-slate-500">
                     No hay respuestas registradas.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {selectedResult.respuestas?.map((answer, index) => (
+                    {selectedResult.respuestas.map((answer, index) => (
                       <div
-                        key={answer.id}
+                        key={answer.id || index}
                         className="border border-slate-200 rounded-xl p-4"
                       >
                         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -554,8 +559,8 @@ function TechnicalResults() {
                       </label>
 
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         value={
                           reviewForms[selectedResult.id]?.puntajeObtenido || ""
                         }
@@ -624,6 +629,7 @@ function TechnicalResults() {
                       size={20}
                       className="text-emerald-700 shrink-0 mt-1"
                     />
+
                     <div>
                       <p className="font-black text-slate-900">
                         Resultado revisado
