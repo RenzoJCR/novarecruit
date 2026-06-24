@@ -4,7 +4,6 @@ import {
   BookOpenCheck,
   BrainCircuit,
   Briefcase,
-  ClipboardList,
   FileBarChart,
   Layers,
   LogOut,
@@ -16,7 +15,6 @@ import {
   X,
   LockKeyhole,
   Building2,
-  Trophy,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -68,7 +66,7 @@ const menuByRole = {
     {
       label: "Mis postulaciones",
       path: "/applicant/postulaciones",
-      icon: ClipboardList,
+      icon: BookOpenCheck,
     },
     {
       label: "Mis evaluaciones",
@@ -99,11 +97,6 @@ const menuByRole = {
       icon: Layers,
     },
     {
-      label: "Postulaciones",
-      path: "/rrhh/postulaciones",
-      icon: ClipboardList,
-    },
-    {
       label: "Notificaciones",
       path: "/notificaciones",
       icon: Bell,
@@ -125,11 +118,6 @@ const menuByRole = {
       label: "Crear evaluación",
       path: "/technical/evaluaciones/create",
       icon: Layers,
-    },
-    {
-      label: "Resultados",
-      path: "/technical/resultados",
-      icon: Trophy,
     },
     {
       label: "Notificaciones",
@@ -185,13 +173,6 @@ function DashboardLayout() {
   const menuItems = menuByRole[roleName] || [];
   const styles = roleStyles[roleName] || roleStyles.POSTULANTE;
 
-  /*
-   * Conexión WebSocket global para cualquier rol.
-   *
-   * El backend envía mensajes a /topic/notificaciones.
-   * El frontend recibe solo las notificaciones cuyo usuarioId coincide
-   * con el usuario autenticado.
-   */
   useEffect(() => {
     if (!currentUser?.id) return undefined;
 
@@ -243,9 +224,15 @@ function DashboardLayout() {
   };
 
   const getPageTitle = () => {
-    const currentItem = menuItems.find((item) =>
-      location.pathname.startsWith(item.path)
-    );
+    /*
+     * Buscamos primero la ruta más específica.
+     * Ejemplo:
+     * /rrhh/vacantes/create debe mostrar "Crear vacante",
+     * no solamente "Vacantes".
+     */
+    const currentItem = [...menuItems]
+      .sort((a, b) => b.path.length - a.path.length)
+      .find((item) => location.pathname.startsWith(item.path));
 
     return currentItem?.label || "NovaRecruit";
   };
