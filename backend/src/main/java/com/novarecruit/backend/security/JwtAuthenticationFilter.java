@@ -28,6 +28,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
+        /*
+         * El frontend debe enviar:
+         * Authorization: Bearer TOKEN
+         *
+         * Si no hay token, dejamos continuar.
+         * Luego SecurityConfig decidirá si esa ruta permite acceso público o no.
+         */
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -59,6 +66,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         } catch (Exception ignored) {
+            /*
+             * Si el token es inválido o expiró, limpiamos el contexto.
+             * No cortamos aquí la petición; SecurityConfig se encargará de rechazar
+             * las rutas que requieran autenticación.
+             */
             SecurityContextHolder.clearContext();
         }
 

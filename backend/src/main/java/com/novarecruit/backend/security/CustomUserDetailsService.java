@@ -20,11 +20,46 @@ public class CustomUserDetailsService implements UserDetailsService {
         Usuario usuario = usuarioRepository.findByCorreoIgnoreCase(correo)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado."));
 
+        /*
+         * Spring Security usa authorities.
+         *
+         * Ejemplo:
+         * ADMINISTRADOR -> ROLE_ADMINISTRADOR
+         * POSTULANTE -> ROLE_POSTULANTE
+         */
+        String roleName = normalizarRol(usuario.getRol().getNombre());
+        String authority = "ROLE_" + roleName;
+
         return User.builder()
                 .username(usuario.getCorreo())
                 .password(usuario.getPassword())
-                .authorities("ROLE_" + usuario.getRol().getNombre())
+                .authorities(authority)
                 .disabled(Boolean.FALSE.equals(usuario.getEstado()))
                 .build();
+    }
+
+    private String normalizarRol(String rol) {
+        if (rol == null) {
+            return "";
+        }
+
+        String value = rol.trim()
+                .toUpperCase()
+                .replace(" ", "_")
+                .replace("-", "_");
+
+        if ("RRHH".equals(value) || "RECURSOSHUMANOS".equals(value)) {
+            return "RECURSOS_HUMANOS";
+        }
+
+        if ("RECURSOS_HUMANOS".equals(value)) {
+            return "RECURSOS_HUMANOS";
+        }
+
+        if ("LIDER_TECNICO".equals(value) || "LÍDER_TÉCNICO".equals(value)) {
+            return "LIDER_TECNICO";
+        }
+
+        return value;
     }
 }

@@ -21,6 +21,16 @@ public class JwtService {
     @Value("${app.jwt.expiration-ms}")
     private Long jwtExpirationMs;
 
+    /*
+     * Genera el token JWT después del login.
+     *
+     * Guardamos:
+     * - subject: correo del usuario
+     * - userId: ID del usuario
+     * - rol: rol del usuario
+     *
+     * El subject se usa para volver a cargar al usuario autenticado.
+     */
     public String generateToken(Usuario usuario) {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + jwtExpirationMs);
