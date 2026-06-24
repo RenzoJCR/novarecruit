@@ -1,6 +1,10 @@
 package com.novarecruit.backend.controller;
 
-import com.novarecruit.backend.dto.request.*;
+import com.novarecruit.backend.dto.request.ChangePasswordRequest;
+import com.novarecruit.backend.dto.request.LoginRequest;
+import com.novarecruit.backend.dto.request.RegisterRequest;
+import com.novarecruit.backend.dto.request.ResendCodeRequest;
+import com.novarecruit.backend.dto.request.VerifyEmailRequest;
 import com.novarecruit.backend.dto.response.AuthResponse;
 import com.novarecruit.backend.exception.BusinessException;
 import com.novarecruit.backend.security.JwtService;

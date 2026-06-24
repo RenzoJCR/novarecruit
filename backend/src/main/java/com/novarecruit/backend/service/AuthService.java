@@ -1,6 +1,10 @@
 package com.novarecruit.backend.service;
 
-import com.novarecruit.backend.dto.request.*;
+import com.novarecruit.backend.dto.request.ChangePasswordRequest;
+import com.novarecruit.backend.dto.request.LoginRequest;
+import com.novarecruit.backend.dto.request.RegisterRequest;
+import com.novarecruit.backend.dto.request.ResendCodeRequest;
+import com.novarecruit.backend.dto.request.VerifyEmailRequest;
 import com.novarecruit.backend.dto.response.AuthResponse;
 import com.novarecruit.backend.entity.EmailVerificacion;
 import com.novarecruit.backend.entity.Rol;
@@ -11,6 +15,7 @@ import com.novarecruit.backend.repository.RolRepository;
 import com.novarecruit.backend.repository.UsuarioRepository;
 import com.novarecruit.backend.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +36,9 @@ public class AuthService {
     private final LogSistemaService logSistemaService;
 
     private final SecureRandom secureRandom = new SecureRandom();
+
+    @Value("${app.mail.verification-expiration-minutes:15}")
+    private Long verificationExpirationMinutes;
 
     @Transactional
     public AuthResponse registrarPostulante(RegisterRequest request) {
@@ -149,9 +157,12 @@ public class AuthService {
             throw new BusinessException("El código de verificación ha expirado. Solicita uno nuevo.");
         }
 
-        if (!verificacion.getCodigo().equals(request.getCodigo().trim())) {
+        String codigoIngresado = request.getCodigo().trim();
+
+        if (!verificacion.getCodigo().equals(codigoIngresado)) {
             verificacion.setIntentos(verificacion.getIntentos() + 1);
             emailVerificacionRepository.save(verificacion);
+
             throw new BusinessException("El código ingresado no es correcto.");
         }
 
@@ -159,19 +170,19 @@ public class AuthService {
         emailVerificacionRepository.save(verificacion);
 
         usuario.setCorreoVerificado(true);
-        usuarioRepository.save(usuario);
+        Usuario usuarioActualizado = usuarioRepository.save(usuario);
 
-        String token = jwtService.generateToken(usuario);
+        String token = jwtService.generateToken(usuarioActualizado);
 
         logSistemaService.registrarLog(
-                usuario.getId(),
+                usuarioActualizado.getId(),
                 "VERIFICAR_CORREO",
                 "AUTH",
-                "El usuario verificó su correo: " + usuario.getCorreo(),
+                "El usuario verificó su correo: " + usuarioActualizado.getCorreo(),
                 "127.0.0.1"
         );
 
-        return buildAuthResponse(usuario, token, "Correo verificado correctamente.");
+        return buildAuthResponse(usuarioActualizado, token, "Correo verificado correctamente.");
     }
 
     @Transactional
@@ -241,7 +252,7 @@ public class AuthService {
                 .codigo(codigo)
                 .usado(false)
                 .intentos(0)
-                .fechaExpiracion(LocalDateTime.now().plusMinutes(15))
+                .fechaExpiracion(LocalDateTime.now().plusMinutes(verificationExpirationMinutes))
                 .build();
 
         emailVerificacionRepository.save(verificacion);

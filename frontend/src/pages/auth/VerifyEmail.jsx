@@ -22,16 +22,55 @@ function VerifyEmail() {
     setMessageType(type);
   };
 
+  const handleCorreoChange = (e) => {
+    const value = e.target.value;
+
+    if (/\s/.test(value)) return;
+
+    setCorreo(value);
+  };
+
+  const handleCodigoChange = (e) => {
+    const value = e.target.value;
+
+    /*
+     * Solo permitimos números y máximo 6 dígitos.
+     */
+    if (/^\d{0,6}$/.test(value)) {
+      setCodigo(value);
+    }
+  };
+
+  const validateForm = () => {
+    const correoValue = correo.trim().toLowerCase();
+    const codigoValue = codigo.trim();
+
+    if (!correoValue) return "Ingresa tu correo.";
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    if (!emailRegex.test(correoValue)) {
+      return "Ingresa un correo válido.";
+    }
+
+    if (!codigoValue) {
+      return "Ingresa el código de verificación.";
+    }
+
+    if (!/^\d{6}$/.test(codigoValue)) {
+      return "El código debe tener 6 dígitos.";
+    }
+
+    return null;
+  };
+
   const handleVerify = async (e) => {
     e.preventDefault();
 
-    if (!correo.trim()) {
-      showMessage("Ingresa tu correo.", "error");
-      return;
-    }
+    const validationError = validateForm();
 
-    if (!codigo.trim()) {
-      showMessage("Ingresa el código de verificación.", "error");
+    if (validationError) {
+      showMessage(validationError, "error");
       return;
     }
 
@@ -41,7 +80,10 @@ function VerifyEmail() {
         codigo: codigo.trim(),
       });
 
-      showMessage(response.message || "Correo verificado correctamente.", "success");
+      showMessage(
+        response.message || "Correo verificado correctamente.",
+        "success"
+      );
 
       setTimeout(() => {
         if (response.debeCambiarPassword) {
@@ -52,24 +94,39 @@ function VerifyEmail() {
         navigate(getHomeByRole(response.rolNombre), { replace: true });
       }, 900);
     } catch (error) {
-      showMessage(error.userMessage || "No se pudo verificar el correo.", "error");
+      showMessage(
+        error.userMessage || "No se pudo verificar el correo.",
+        "error"
+      );
     }
   };
 
   const handleResend = async () => {
-    if (!correo.trim()) {
+    const correoValue = correo.trim().toLowerCase();
+
+    if (!correoValue) {
       showMessage("Ingresa tu correo para reenviar el código.", "error");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    if (!emailRegex.test(correoValue)) {
+      showMessage("Ingresa un correo válido.", "error");
       return;
     }
 
     try {
       const response = await resendCode({
-        correo: correo.trim().toLowerCase(),
+        correo: correoValue,
       });
 
       showMessage(response.message || "Código reenviado.", "success");
     } catch (error) {
-      showMessage(error.userMessage || "No se pudo reenviar el código.", "error");
+      showMessage(
+        error.userMessage || "No se pudo reenviar el código.",
+        "error"
+      );
     }
   };
 
@@ -92,8 +149,8 @@ function VerifyEmail() {
           </h1>
 
           <p className="text-slate-500 mt-2">
-            Ingresa el código de 6 dígitos enviado a tu correo. Si no tienes
-            correo real configurado, revisa la consola del backend.
+            Ingresa el código de 6 dígitos enviado a tu correo. Si el correo
+            real aún no está configurado, revisa la consola del backend.
           </p>
 
           {message && (
@@ -113,8 +170,9 @@ function VerifyEmail() {
               <input
                 type="email"
                 value={correo}
-                onChange={(e) => setCorreo(e.target.value)}
+                onChange={handleCorreoChange}
                 placeholder="correo@ejemplo.com"
+                maxLength={120}
                 className="input-light"
               />
             </div>
@@ -126,11 +184,16 @@ function VerifyEmail() {
 
               <input
                 value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
+                onChange={handleCodigoChange}
                 placeholder="123456"
                 maxLength={6}
+                inputMode="numeric"
                 className="input-light text-center text-2xl tracking-[0.4em] font-black"
               />
+
+              <p className="text-xs text-slate-400 mt-2">
+                Solo números. El código vence en 15 minutos.
+              </p>
             </div>
 
             <button

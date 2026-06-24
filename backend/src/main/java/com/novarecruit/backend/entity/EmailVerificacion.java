@@ -18,11 +18,15 @@ public class EmailVerificacion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /*
+     * Usuario al que pertenece el código.
+     * Se usa relación ManyToOne para poder tener historial de códigos enviados.
+     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
-    @Column(name = "codigo", nullable = false, length = 10)
+    @Column(name = "codigo", nullable = false, length = 6)
     private String codigo;
 
     @Column(name = "usado", nullable = false)
