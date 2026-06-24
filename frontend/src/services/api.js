@@ -8,14 +8,7 @@ const api = axios.create({
 });
 
 /*
- * Este interceptor agrega el JWT a cada petición.
- *
- * En nuestro proyecto el token se guarda como:
- * localStorage["novarecruit_token"]
- *
- * Si el backend no recibe este header:
- * Authorization: Bearer TOKEN
- * Spring Security responde 403 en rutas protegidas.
+ * Todas las peticiones enviarán el JWT.
  */
 api.interceptors.request.use(
   (config) => {
@@ -30,9 +23,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-/*
- * Este interceptor convierte errores del backend en mensajes entendibles.
- */
 api.interceptors.response.use(
   (response) => response,
   (error) => {

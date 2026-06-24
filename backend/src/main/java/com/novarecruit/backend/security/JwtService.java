@@ -22,14 +22,8 @@ public class JwtService {
     private Long jwtExpirationMs;
 
     /*
-     * Genera el token JWT después del login.
-     *
-     * Guardamos:
-     * - subject: correo del usuario
-     * - userId: ID del usuario
-     * - rol: rol del usuario
-     *
-     * El subject se usa para volver a cargar al usuario autenticado.
+     * Genera el token JWT al iniciar sesión.
+     * Guardamos correo, ID y rol.
      */
     public String generateToken(Usuario usuario) {
         Date now = new Date();
@@ -49,9 +43,35 @@ public class JwtService {
         return extractAllClaims(token).getSubject();
     }
 
+    public String extractRole(String token) {
+        Object rol = extractAllClaims(token).get("rol");
+        return rol == null ? null : rol.toString();
+    }
+
+    public Long extractUserId(String token) {
+        Object userId = extractAllClaims(token).get("userId");
+
+        if (userId == null) {
+            return null;
+        }
+
+        if (userId instanceof Integer) {
+            return ((Integer) userId).longValue();
+        }
+
+        if (userId instanceof Long) {
+            return (Long) userId;
+        }
+
+        return Long.valueOf(userId.toString());
+    }
+
+    public boolean isTokenValid(String token) {
+        return !isTokenExpired(token);
+    }
+
     public boolean isTokenValid(String token, UserDetails userDetails) {
         String username = extractUsername(token);
-
         return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
     }
 

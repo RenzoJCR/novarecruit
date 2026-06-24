@@ -6,20 +6,20 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final CustomUserDetailsService customUserDetailsService;
 
     @Override
     protected void doFilterInternal(
@@ -31,9 +31,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         /*
          * El frontend debe enviar:
          * Authorization: Bearer TOKEN
-         *
-         * Si no hay token, dejamos continuar.
-         * Luego SecurityConfig decidirá si esa ruta permite acceso público o no.
          */
         String authHeader = request.getHeader("Authorization");
 
@@ -46,34 +43,68 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String correo = jwtService.extractUsername(token);
+            String rol = normalizarRol(jwtService.extractRole(token));
 
-            if (correo != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = customUserDetailsService.loadUserByUsername(correo);
+            if (
+                    correo != null &&
+                            rol != null &&
+                            jwtService.isTokenValid(token) &&
+                            SecurityContextHolder.getContext().getAuthentication() == null
+            ) {
+                /*
+                 * Cargamos ambas autoridades:
+                 * ROLE_ADMINISTRADOR y ADMINISTRADOR.
+                 *
+                 * Así funciona tanto con hasRole como con hasAuthority.
+                 */
+                List<SimpleGrantedAuthority> authorities = List.of(
+                        new SimpleGrantedAuthority("ROLE_" + rol),
+                        new SimpleGrantedAuthority(rol)
+                );
 
-                if (jwtService.isTokenValid(token, userDetails)) {
-                    UsernamePasswordAuthenticationToken authenticationToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails,
-                                    null,
-                                    userDetails.getAuthorities()
-                            );
+                UsernamePasswordAuthenticationToken authenticationToken =
+                        new UsernamePasswordAuthenticationToken(
+                                correo,
+                                null,
+                                authorities
+                        );
 
-                    authenticationToken.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
+                authenticationToken.setDetails(
+                        new WebAuthenticationDetailsSource().buildDetails(request)
+                );
 
-                    SecurityContextHolder.getContext().setAuthentication(authenticationToken);
-                }
+                SecurityContextHolder.getContext().setAuthentication(authenticationToken);
             }
-        } catch (Exception ignored) {
-            /*
-             * Si el token es inválido o expiró, limpiamos el contexto.
-             * No cortamos aquí la petición; SecurityConfig se encargará de rechazar
-             * las rutas que requieran autenticación.
-             */
+        } catch (Exception ex) {
             SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private String normalizarRol(String rol) {
+        if (rol == null) {
+            return null;
+        }
+
+        String value = rol.trim()
+                .toUpperCase()
+                .replace(" ", "_")
+                .replace("-", "_")
+                .replace("Á", "A")
+                .replace("É", "E")
+                .replace("Í", "I")
+                .replace("Ó", "O")
+                .replace("Ú", "U");
+
+        if ("RRHH".equals(value) || "RECURSOSHUMANOS".equals(value) || "RECURSOS_HUMANOS".equals(value)) {
+            return "RECURSOS_HUMANOS";
+        }
+
+        if ("LIDERTECNICO".equals(value) || "LIDER_TECNICO".equals(value)) {
+            return "LIDER_TECNICO";
+        }
+
+        return value;
     }
 }

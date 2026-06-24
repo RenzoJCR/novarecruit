@@ -22,179 +22,114 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
 
+    private static final String ADMIN = "ROLE_ADMINISTRADOR";
+    private static final String RRHH = "ROLE_RECURSOS_HUMANOS";
+    private static final String TECNICO = "ROLE_LIDER_TECNICO";
+    private static final String POSTULANTE = "ROLE_POSTULANTE";
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                /*
-                 * Permite conexión entre React y Spring Boot.
-                 */
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-
-                /*
-                 * API REST con JWT:
-                 * no usamos formulario, sesión tradicional ni CSRF.
-                 */
                 .csrf(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-
-                /*
-                 * Stateless:
-                 * el backend no guarda sesión, cada request puede enviar JWT.
-                 */
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-
                 .authorizeHttpRequests(auth -> auth
 
-                        /*
-                         * Necesario para CORS.
-                         */
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        /*
-                         * WebSocket/STOMP.
-                         */
                         .requestMatchers("/ws", "/ws/**").permitAll()
 
-                        /*
-                         * Login, registro, verificación, cambio de contraseña, etc.
-                         */
                         .requestMatchers("/api/auth/**").permitAll()
 
                         /*
-                         * GET generales:
-                         * Permitimos consultas para que las pantallas puedan cargar.
-                         *
-                         * En esta etapa protegemos principalmente acciones de escritura.
-                         * Esto evita que el sistema se rompa por listados compartidos
-                         * entre postulante, RRHH, técnico y admin.
+                         * Lecturas generales para no romper pantallas.
                          */
-                        .requestMatchers(HttpMethod.GET, "/api/vacantes/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/areas/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/habilidades/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/postulaciones/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/evaluaciones/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/evaluaciones-postulacion/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/notificaciones/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/usuarios/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/logs/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/vacantes", "/api/vacantes/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/areas", "/api/areas/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/habilidades", "/api/habilidades/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/postulaciones", "/api/postulaciones/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/evaluaciones", "/api/evaluaciones/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/evaluaciones-postulacion", "/api/evaluaciones-postulacion/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/notificaciones", "/api/notificaciones/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/usuarios", "/api/usuarios/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/logs", "/api/logs/**").permitAll()
 
                         /*
-                         * ADMINISTRADOR:
-                         * acciones administrativas fuertes.
+                         * ADMINISTRADOR.
                          */
-                        .requestMatchers(HttpMethod.POST, "/api/usuarios/**").hasRole("ADMINISTRADOR")
-                        .requestMatchers(HttpMethod.PUT, "/api/usuarios/**").hasRole("ADMINISTRADOR")
-                        .requestMatchers(HttpMethod.PATCH, "/api/usuarios/**").hasRole("ADMINISTRADOR")
-                        .requestMatchers(HttpMethod.DELETE, "/api/usuarios/**").hasRole("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/usuarios", "/api/usuarios/**").hasAuthority(ADMIN)
+                        .requestMatchers(HttpMethod.PUT, "/api/usuarios", "/api/usuarios/**").hasAuthority(ADMIN)
+                        .requestMatchers(HttpMethod.PATCH, "/api/usuarios", "/api/usuarios/**").hasAuthority(ADMIN)
+                        .requestMatchers(HttpMethod.DELETE, "/api/usuarios", "/api/usuarios/**").hasAuthority(ADMIN)
 
-                        .requestMatchers(HttpMethod.POST, "/api/areas/**").hasRole("ADMINISTRADOR")
-                        .requestMatchers(HttpMethod.PUT, "/api/areas/**").hasRole("ADMINISTRADOR")
-                        .requestMatchers(HttpMethod.PATCH, "/api/areas/**").hasRole("ADMINISTRADOR")
-                        .requestMatchers(HttpMethod.DELETE, "/api/areas/**").hasRole("ADMINISTRADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/areas", "/api/areas/**").hasAuthority(ADMIN)
+                        .requestMatchers(HttpMethod.PUT, "/api/areas", "/api/areas/**").hasAuthority(ADMIN)
+                        .requestMatchers(HttpMethod.PATCH, "/api/areas", "/api/areas/**").hasAuthority(ADMIN)
+                        .requestMatchers(HttpMethod.DELETE, "/api/areas", "/api/areas/**").hasAuthority(ADMIN)
 
                         /*
-                         * RRHH:
-                         * creación y edición de vacantes.
+                         * RRHH.
                          */
-                        .requestMatchers(HttpMethod.POST, "/api/vacantes/**")
-                        .hasRole("RECURSOS_HUMANOS")
+                        .requestMatchers(HttpMethod.POST, "/api/vacantes", "/api/vacantes/**").hasAuthority(RRHH)
+                        .requestMatchers(HttpMethod.PUT, "/api/vacantes", "/api/vacantes/**").hasAuthority(RRHH)
+                        .requestMatchers(HttpMethod.DELETE, "/api/vacantes", "/api/vacantes/**").hasAuthority(RRHH)
 
-                        .requestMatchers(HttpMethod.PUT, "/api/vacantes/**")
-                        .hasRole("RECURSOS_HUMANOS")
+                        .requestMatchers(HttpMethod.PATCH, "/api/vacantes", "/api/vacantes/**")
+                        .hasAnyAuthority(RRHH, TECNICO)
 
-                        .requestMatchers(HttpMethod.DELETE, "/api/vacantes/**")
-                        .hasRole("RECURSOS_HUMANOS")
+                        .requestMatchers(HttpMethod.PUT, "/api/postulaciones", "/api/postulaciones/**").hasAuthority(RRHH)
+                        .requestMatchers(HttpMethod.PATCH, "/api/postulaciones", "/api/postulaciones/**").hasAuthority(RRHH)
 
                         /*
-                         * PATCH en vacantes:
-                         * RRHH puede cambiar estados, y líder técnico puede intervenir
-                         * en acciones finales si el flujo lo requiere.
+                         * POSTULANTE.
                          */
-                        .requestMatchers(HttpMethod.PATCH, "/api/vacantes/**")
-                        .hasAnyRole("RECURSOS_HUMANOS", "LIDER_TECNICO")
-
-                        /*
-                         * POSTULANTE:
-                         * puede crear postulaciones.
-                         */
-                        .requestMatchers(HttpMethod.POST, "/api/postulaciones/**")
-                        .hasRole("POSTULANTE")
-
-                        /*
-                         * RRHH:
-                         * revisa postulaciones.
-                         */
-                        .requestMatchers(HttpMethod.PUT, "/api/postulaciones/**")
-                        .hasRole("RECURSOS_HUMANOS")
-
-                        .requestMatchers(HttpMethod.PATCH, "/api/postulaciones/**")
-                        .hasRole("RECURSOS_HUMANOS")
-
-                        /*
-                         * LÍDER TÉCNICO:
-                         * crea, actualiza, reactiva o desactiva evaluaciones.
-                         */
-                        .requestMatchers(HttpMethod.POST, "/api/evaluaciones/**")
-                        .hasRole("LIDER_TECNICO")
-
-                        .requestMatchers(HttpMethod.PUT, "/api/evaluaciones/**")
-                        .hasRole("LIDER_TECNICO")
-
-                        .requestMatchers(HttpMethod.PATCH, "/api/evaluaciones/**")
-                        .hasRole("LIDER_TECNICO")
-
-                        .requestMatchers(HttpMethod.DELETE, "/api/evaluaciones/**")
-                        .hasRole("LIDER_TECNICO")
-
-                        /*
-                         * Evaluación asignada:
-                         * técnico asigna, postulante envía, técnico revisa.
-                         */
-                        .requestMatchers(HttpMethod.POST, "/api/evaluaciones-postulacion/asignar")
-                        .hasRole("LIDER_TECNICO")
+                        .requestMatchers(HttpMethod.POST, "/api/postulaciones", "/api/postulaciones/**").hasAuthority(POSTULANTE)
 
                         .requestMatchers(HttpMethod.POST, "/api/evaluaciones-postulacion/enviar")
-                        .hasRole("POSTULANTE")
+                        .hasAuthority(POSTULANTE)
+
+                        /*
+                         * LÍDER TÉCNICO.
+                         */
+                        .requestMatchers(HttpMethod.POST, "/api/evaluaciones", "/api/evaluaciones/**").hasAuthority(TECNICO)
+                        .requestMatchers(HttpMethod.PUT, "/api/evaluaciones", "/api/evaluaciones/**").hasAuthority(TECNICO)
+                        .requestMatchers(HttpMethod.PATCH, "/api/evaluaciones", "/api/evaluaciones/**").hasAuthority(TECNICO)
+                        .requestMatchers(HttpMethod.DELETE, "/api/evaluaciones", "/api/evaluaciones/**").hasAuthority(TECNICO)
+
+                        .requestMatchers(HttpMethod.POST, "/api/evaluaciones-postulacion/asignar")
+                        .hasAuthority(TECNICO)
 
                         .requestMatchers(HttpMethod.PATCH, "/api/evaluaciones-postulacion/*/revision-tecnica")
-                        .hasRole("LIDER_TECNICO")
+                        .hasAuthority(TECNICO)
 
                         /*
-                         * Habilidades:
-                         * gestión para roles internos.
+                         * Habilidades.
                          */
-                        .requestMatchers(HttpMethod.POST, "/api/habilidades/**")
-                        .hasAnyRole("ADMINISTRADOR", "RECURSOS_HUMANOS")
+                        .requestMatchers(HttpMethod.POST, "/api/habilidades", "/api/habilidades/**")
+                        .hasAnyAuthority(ADMIN, RRHH)
 
-                        .requestMatchers(HttpMethod.PUT, "/api/habilidades/**")
-                        .hasAnyRole("ADMINISTRADOR", "RECURSOS_HUMANOS")
+                        .requestMatchers(HttpMethod.PUT, "/api/habilidades", "/api/habilidades/**")
+                        .hasAnyAuthority(ADMIN, RRHH)
 
-                        .requestMatchers(HttpMethod.PATCH, "/api/habilidades/**")
-                        .hasAnyRole("ADMINISTRADOR", "RECURSOS_HUMANOS")
+                        .requestMatchers(HttpMethod.PATCH, "/api/habilidades", "/api/habilidades/**")
+                        .hasAnyAuthority(ADMIN, RRHH)
 
-                        .requestMatchers(HttpMethod.DELETE, "/api/habilidades/**")
-                        .hasAnyRole("ADMINISTRADOR", "RECURSOS_HUMANOS")
+                        .requestMatchers(HttpMethod.DELETE, "/api/habilidades", "/api/habilidades/**")
+                        .hasAnyAuthority(ADMIN, RRHH)
 
-                        /*
-                         * Endpoint de prueba WebSocket.
-                         */
                         .requestMatchers("/api/ws-test/**").permitAll()
 
                         /*
-                         * Cualquier otra API queda accesible para no romper el flujo.
-                         * Las validaciones principales siguen estando en los services.
+                         * El resto se permite para no bloquear flujos no mapeados.
                          */
                         .requestMatchers("/api/**").permitAll()
 
                         .anyRequest().permitAll()
                 )
-
-                /*
-                 * Si llega token, lo procesa y carga el usuario autenticado.
-                 */
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

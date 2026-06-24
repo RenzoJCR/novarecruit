@@ -21,19 +21,21 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado."));
 
         /*
-         * Spring Security usa authorities.
+         * Aquí convertimos el rol de la BD a un formato que Spring Security pueda entender.
          *
          * Ejemplo:
          * ADMINISTRADOR -> ROLE_ADMINISTRADOR
+         * RECURSOS_HUMANOS -> ROLE_RECURSOS_HUMANOS
+         * LIDER_TECNICO -> ROLE_LIDER_TECNICO
          * POSTULANTE -> ROLE_POSTULANTE
          */
         String roleName = normalizarRol(usuario.getRol().getNombre());
-        String authority = "ROLE_" + roleName;
+        String authorityWithPrefix = "ROLE_" + roleName;
 
         return User.builder()
                 .username(usuario.getCorreo())
                 .password(usuario.getPassword())
-                .authorities(authority)
+                .authorities(authorityWithPrefix, roleName)
                 .disabled(Boolean.FALSE.equals(usuario.getEstado()))
                 .build();
     }
@@ -46,17 +48,18 @@ public class CustomUserDetailsService implements UserDetailsService {
         String value = rol.trim()
                 .toUpperCase()
                 .replace(" ", "_")
-                .replace("-", "_");
+                .replace("-", "_")
+                .replace("Á", "A")
+                .replace("É", "E")
+                .replace("Í", "I")
+                .replace("Ó", "O")
+                .replace("Ú", "U");
 
-        if ("RRHH".equals(value) || "RECURSOSHUMANOS".equals(value)) {
+        if ("RRHH".equals(value) || "RECURSOSHUMANOS".equals(value) || "RECURSOS_HUMANOS".equals(value)) {
             return "RECURSOS_HUMANOS";
         }
 
-        if ("RECURSOS_HUMANOS".equals(value)) {
-            return "RECURSOS_HUMANOS";
-        }
-
-        if ("LIDER_TECNICO".equals(value) || "LÍDER_TÉCNICO".equals(value)) {
+        if ("LIDER_TECNICO".equals(value) || "LIDERTECNICO".equals(value)) {
             return "LIDER_TECNICO";
         }
 
