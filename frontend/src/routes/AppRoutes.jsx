@@ -24,13 +24,11 @@ import ApplicantProfile from "../pages/applicant/ApplicantProfile.jsx";
 
 import RrhhJobs from "../pages/rrhh/RrhhJobs.jsx";
 import RrhhCreateJob from "../pages/rrhh/RrhhCreateJob.jsx";
-import RrhhApplications from "../pages/rrhh/RrhhApplications.jsx";
 
 import TechnicalJobs from "../pages/technical/TechnicalJobs.jsx";
 import TechnicalJobDetail from "../pages/technical/TechnicalJobDetail.jsx";
 import TechnicalEvaluations from "../pages/technical/TechnicalEvaluations.jsx";
 import TechnicalCreateEvaluation from "../pages/technical/TechnicalCreateEvaluation.jsx";
-import TechnicalResults from "../pages/technical/TechnicalResults.jsx";
 
 import AdminUsers from "../pages/admin/AdminUsers.jsx";
 import AdminCreateUser from "../pages/admin/AdminCreateUser.jsx";
@@ -81,31 +79,39 @@ function AppRoutes() {
           path="/applicant"
           element={<Navigate to="/applicant/vacantes" replace />}
         />
+
         <Route
           path="/applicant/dashboard"
           element={<Navigate to="/applicant/vacantes" replace />}
         />
+
         <Route path="/applicant/vacantes" element={<ApplicantJobs />} />
+
         <Route
           path="/applicant/vacantes/:id"
           element={<ApplicantJobDetail />}
         />
+
         <Route
           path="/applicant/postulaciones"
           element={<ApplicantApplications />}
         />
+
         <Route
           path="/applicant/evaluaciones"
           element={<ApplicantEvaluations />}
         />
+
         <Route
           path="/applicant/evaluaciones/:id"
           element={<ApplicantEvaluationDetail />}
         />
+
         <Route
           path="/applicant/notificaciones"
           element={<Navigate to="/notificaciones" replace />}
         />
+
         <Route path="/applicant/perfil" element={<ApplicantProfile />} />
       </Route>
 
@@ -120,20 +126,35 @@ function AppRoutes() {
           path="/rrhh"
           element={<Navigate to="/rrhh/vacantes" replace />}
         />
+
         <Route
           path="/rrhh/dashboard"
           element={<Navigate to="/rrhh/vacantes" replace />}
         />
+
         <Route path="/rrhh/vacantes" element={<RrhhJobs />} />
+
         <Route path="/rrhh/vacantes/create" element={<RrhhCreateJob />} />
-        <Route path="/rrhh/postulaciones" element={<RrhhApplications />} />
+
+        {/*
+          Rutas antiguas del flujo RRHH.
+          Se conservan como redirección para no romper links guardados,
+          pero el flujo principal ahora es:
+          Vacantes → Ver vacante → Candidatos → Aprobar/Rechazar.
+        */}
+        <Route
+          path="/rrhh/postulaciones"
+          element={<Navigate to="/rrhh/vacantes" replace />}
+        />
+
         <Route
           path="/rrhh/candidatos"
-          element={<Navigate to="/rrhh/postulaciones" replace />}
+          element={<Navigate to="/rrhh/vacantes" replace />}
         />
+
         <Route
           path="/rrhh/entrevistas"
-          element={<Navigate to="/rrhh/postulaciones" replace />}
+          element={<Navigate to="/rrhh/vacantes" replace />}
         />
       </Route>
 
@@ -148,25 +169,44 @@ function AppRoutes() {
           path="/technical"
           element={<Navigate to="/technical/vacantes" replace />}
         />
+
         <Route
           path="/technical/dashboard"
           element={<Navigate to="/technical/vacantes" replace />}
         />
+
         <Route path="/technical/vacantes" element={<TechnicalJobs />} />
-        <Route path="/technical/vacantes/:id" element={<TechnicalJobDetail />} />
+
+        <Route
+          path="/technical/vacantes/:id"
+          element={<TechnicalJobDetail />}
+        />
+
         <Route
           path="/technical/evaluaciones"
           element={<TechnicalEvaluations />}
         />
+
         <Route
           path="/technical/evaluaciones/create"
           element={<TechnicalCreateEvaluation />}
         />
+
+        {/*
+          Rutas antiguas del flujo técnico.
+          Se conservan como redirección para no romper links guardados,
+          pero el flujo principal ahora es:
+          Procesos técnicos → Ver vacante → Candidatos → Asignar/Revisar/Ganador.
+        */}
         <Route
           path="/technical/postulantes"
           element={<Navigate to="/technical/vacantes" replace />}
         />
-        <Route path="/technical/resultados" element={<TechnicalResults />} />
+
+        <Route
+          path="/technical/resultados"
+          element={<Navigate to="/technical/vacantes" replace />}
+        />
       </Route>
 
       <Route
@@ -180,15 +220,22 @@ function AppRoutes() {
           path="/admin"
           element={<Navigate to="/admin/usuarios" replace />}
         />
+
         <Route
           path="/admin/dashboard"
           element={<Navigate to="/admin/usuarios" replace />}
         />
+
         <Route path="/admin/usuarios" element={<AdminUsers />} />
+
         <Route path="/admin/usuarios/create" element={<AdminCreateUser />} />
+
         <Route path="/admin/areas" element={<AdminAreas />} />
+
         <Route path="/admin/habilidades" element={<AdminSkills />} />
+
         <Route path="/admin/reportes" element={<AdminReports />} />
+
         <Route
           path="/admin/configuracion"
           element={<Navigate to="/admin/reportes" replace />}

@@ -4,6 +4,7 @@ export function getVacanteEstadoLabel(estado) {
     EN_PROCESO: "En proceso",
     CERRADA: "Cerrada",
     CANCELADA: "Cancelada",
+    INACTIVA: "Inactiva",
   };
 
   return labels[estado] || estado || "Sin estado";
@@ -41,6 +42,8 @@ export function getEvaluacionEstadoLabel(estado) {
   const labels = {
     ACTIVA: "Activa",
     INACTIVA: "Inactiva",
+    CERRADA: "Cerrada",
+    CANCELADA: "Cancelada",
   };
 
   return labels[estado] || estado || "Sin estado";
@@ -76,6 +79,7 @@ export function statusClass(estado) {
     EN_PROCESO: "bg-amber-50 text-amber-700 border-amber-200",
     CERRADA: "bg-slate-50 text-slate-600 border-slate-200",
     CANCELADA: "bg-rose-50 text-rose-700 border-rose-200",
+    INACTIVA: "bg-slate-50 text-slate-600 border-slate-200",
 
     POSTULADO: "bg-amber-50 text-amber-700 border-amber-200",
     EN_REVISION_RRHH: "bg-sky-50 text-sky-700 border-sky-200",
@@ -92,7 +96,6 @@ export function statusClass(estado) {
     EN_PROGRESO: "bg-sky-50 text-sky-700 border-sky-200",
     COMPLETADA: "bg-violet-50 text-violet-700 border-violet-200",
     REVISADA: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    INACTIVA: "bg-slate-50 text-slate-600 border-slate-200",
   };
 
   return styles[estado] || "bg-slate-50 text-slate-600 border-slate-200";
@@ -118,7 +121,9 @@ export function formatDateTime(value) {
 }
 
 export function formatMoney(value) {
-  if (value === null || value === undefined) return "No especificado";
+  if (value === null || value === undefined || value === "") {
+    return "No especificado";
+  }
 
   return Number(value).toLocaleString("es-PE", {
     style: "currency",

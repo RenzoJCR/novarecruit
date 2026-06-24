@@ -224,12 +224,6 @@ function DashboardLayout() {
   };
 
   const getPageTitle = () => {
-    /*
-     * Buscamos primero la ruta más específica.
-     * Ejemplo:
-     * /rrhh/vacantes/create debe mostrar "Crear vacante",
-     * no solamente "Vacantes".
-     */
     const currentItem = [...menuItems]
       .sort((a, b) => b.path.length - a.path.length)
       .find((item) => location.pathname.startsWith(item.path));
