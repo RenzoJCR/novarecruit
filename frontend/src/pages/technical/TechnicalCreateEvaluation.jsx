@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  BookOpenCheck,
   Briefcase,
   Clock,
   Plus,
@@ -20,14 +19,14 @@ const initialForm = {
   vacanteId: "",
   titulo: "",
   descripcion: "",
-  duracionMinutos: 40,
-  puntajeMaximo: 100,
+  duracionMinutos: "40",
+  puntajeMaximo: "100",
 };
 
 const initialQuestion = {
   tipoPregunta: "MULTIPLE",
   enunciado: "",
-  puntaje: 20,
+  puntaje: "20",
   opciones: [
     { texto: "", esCorrecta: true },
     { texto: "", esCorrecta: false },
@@ -35,13 +34,49 @@ const initialQuestion = {
 };
 
 const closedQuestionTypes = ["MULTIPLE", "VERDADERO_FALSO"];
+const questionTypes = ["MULTIPLE", "VERDADERO_FALSO", "TEXTO", "CODIGO"];
+
+function isOnlyNumbers(value) {
+  return /^[0-9\s]+$/.test(value.trim());
+}
+
+function hasTextContent(value) {
+  const text = value.trim();
+
+  if (!text) return false;
+  if (isOnlyNumbers(text)) return false;
+
+  return /[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(text);
+}
+
+function allowInteger(value) {
+  return value === "" || /^\d+$/.test(value);
+}
+
+function allowDecimal(value) {
+  return value === "" || /^\d*\.?\d{0,2}$/.test(value);
+}
+
+function toNumber(value) {
+  const number = Number(value);
+  return Number.isNaN(number) ? 0 : number;
+}
+
+function normalizeOptionText(value) {
+  return value.trim().toLowerCase();
+}
 
 function TechnicalCreateEvaluation() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
 
   const [form, setForm] = useState(initialForm);
-  const [questions, setQuestions] = useState([initialQuestion]);
+  const [questions, setQuestions] = useState([
+    {
+      ...initialQuestion,
+      opciones: initialQuestion.opciones.map((option) => ({ ...option })),
+    },
+  ]);
   const [vacantes, setVacantes] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -52,9 +87,18 @@ function TechnicalCreateEvaluation() {
 
   const totalPoints = useMemo(() => {
     return questions.reduce((total, question) => {
-      return total + Number(question.puntaje || 0);
+      return total + toNumber(question.puntaje);
     }, 0);
   }, [questions]);
+
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 4500);
+  };
 
   const loadVacantes = async () => {
     try {
@@ -87,17 +131,30 @@ function TechnicalCreateEvaluation() {
     loadVacantes();
   }, []);
 
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 4500);
-  };
-
   const handleFormChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "duracionMinutos") {
+      if (allowInteger(value)) {
+        setForm((prev) => ({
+          ...prev,
+          [name]: value,
+        }));
+      }
+
+      return;
+    }
+
+    if (name === "puntajeMaximo") {
+      if (allowDecimal(value)) {
+        setForm((prev) => ({
+          ...prev,
+          [name]: value,
+        }));
+      }
+
+      return;
+    }
 
     setForm((prev) => ({
       ...prev,
@@ -136,12 +193,18 @@ function TechnicalCreateEvaluation() {
           };
         }
 
+        if (field === "puntaje") {
+          if (!allowDecimal(value)) return question;
+
+          return {
+            ...question,
+            puntaje: value,
+          };
+        }
+
         return {
           ...question,
-          [field]:
-            field === "puntaje"
-              ? Number(value)
-              : value,
+          [field]: value,
         };
       })
     );
@@ -204,6 +267,10 @@ function TechnicalCreateEvaluation() {
       prevQuestions.map((question, currentQuestionIndex) => {
         if (currentQuestionIndex !== questionIndex) return question;
 
+        if (question.tipoPregunta !== "MULTIPLE") {
+          return question;
+        }
+
         return {
           ...question,
           opciones: [...question.opciones, { texto: "", esCorrecta: false }],
@@ -242,6 +309,11 @@ function TechnicalCreateEvaluation() {
   };
 
   const validateForm = () => {
+    const titulo = form.titulo.trim();
+    const descripcion = form.descripcion.trim();
+    const duracion = toNumber(form.duracionMinutos);
+    const puntajeMaximo = toNumber(form.puntajeMaximo);
+
     if (!currentUser?.id) {
       return "No se encontró el usuario técnico autenticado.";
     }
@@ -250,44 +322,109 @@ function TechnicalCreateEvaluation() {
       return "Selecciona una vacante.";
     }
 
-    if (!form.titulo.trim()) {
+    const selectedVacanteExists = vacantes.some(
+      (vacante) => Number(vacante.id) === Number(form.vacanteId)
+    );
+
+    if (!selectedVacanteExists) {
+      return "Selecciona una vacante válida.";
+    }
+
+    if (!titulo) {
       return "Ingresa el título de la evaluación.";
     }
 
-    if (form.titulo.trim().length < 5) {
+    if (titulo.length < 5) {
       return "El título debe tener al menos 5 caracteres.";
     }
 
-    if (!form.duracionMinutos || Number(form.duracionMinutos) <= 0) {
-      return "La duración debe ser mayor a cero.";
+    if (!hasTextContent(titulo)) {
+      return "El título debe contener texto válido y no puede ser solo números.";
     }
 
-    if (!form.puntajeMaximo || Number(form.puntajeMaximo) <= 0) {
-      return "El puntaje máximo debe ser mayor a cero.";
+    if (descripcion) {
+      if (descripcion.length < 10) {
+        return "La descripción debe tener al menos 10 caracteres si la ingresas.";
+      }
+
+      if (!hasTextContent(descripcion)) {
+        return "La descripción debe contener texto válido y no puede ser solo números.";
+      }
+    }
+
+    if (!form.duracionMinutos) {
+      return "Ingresa la duración de la evaluación.";
+    }
+
+    if (!Number.isInteger(duracion)) {
+      return "La duración debe ser un número entero.";
+    }
+
+    if (duracion <= 0) {
+      return "La duración debe ser mayor a 0.";
+    }
+
+    if (duracion > 300) {
+      return "La duración no debería superar los 300 minutos.";
+    }
+
+    if (!form.puntajeMaximo) {
+      return "Ingresa el puntaje máximo.";
+    }
+
+    if (puntajeMaximo <= 0) {
+      return "El puntaje máximo debe ser mayor a 0.";
     }
 
     if (questions.length === 0) {
       return "La evaluación debe tener al menos una pregunta.";
     }
 
-    if (totalPoints > Number(form.puntajeMaximo)) {
+    if (totalPoints <= 0) {
+      return "La suma de puntos debe ser mayor a 0.";
+    }
+
+    if (totalPoints > puntajeMaximo) {
       return "La suma de puntos no puede superar el puntaje máximo.";
     }
 
     for (let index = 0; index < questions.length; index++) {
       const question = questions[index];
+      const questionNumber = index + 1;
+      const enunciado = question.enunciado.trim();
+      const puntaje = toNumber(question.puntaje);
 
-      if (!question.enunciado.trim()) {
-        return `La pregunta ${index + 1} debe tener enunciado.`;
+      if (!questionTypes.includes(question.tipoPregunta)) {
+        return `La pregunta ${questionNumber} tiene un tipo no válido.`;
       }
 
-      if (!question.puntaje || Number(question.puntaje) <= 0) {
-        return `La pregunta ${index + 1} debe tener puntaje mayor a cero.`;
+      if (!enunciado) {
+        return `La pregunta ${questionNumber} debe tener enunciado.`;
+      }
+
+      if (enunciado.length < 5) {
+        return `El enunciado de la pregunta ${questionNumber} debe tener al menos 5 caracteres.`;
+      }
+
+      if (!hasTextContent(enunciado)) {
+        return `El enunciado de la pregunta ${questionNumber} debe contener texto válido y no puede ser solo números.`;
+      }
+
+      if (!question.puntaje) {
+        return `La pregunta ${questionNumber} debe tener puntaje.`;
+      }
+
+      if (puntaje <= 0) {
+        return `La pregunta ${questionNumber} debe tener puntaje mayor a 0.`;
+      }
+
+      if (puntaje > puntajeMaximo) {
+        return `La pregunta ${questionNumber} no puede tener más puntaje que el puntaje máximo.`;
       }
 
       if (closedQuestionTypes.includes(question.tipoPregunta)) {
         if (!question.opciones || question.opciones.length < 2) {
-          return `La pregunta ${index + 1} debe tener al menos dos opciones.`;
+          return `La pregunta ${questionNumber} debe tener al menos dos opciones.`;
         }
 
         const emptyOption = question.opciones.some(
@@ -295,7 +432,17 @@ function TechnicalCreateEvaluation() {
         );
 
         if (emptyOption) {
-          return `Todas las opciones de la pregunta ${index + 1} deben tener texto.`;
+          return `Todas las opciones de la pregunta ${questionNumber} deben tener texto.`;
+        }
+
+        const optionTexts = question.opciones.map((option) =>
+          normalizeOptionText(option.texto)
+        );
+
+        const uniqueOptionTexts = new Set(optionTexts);
+
+        if (uniqueOptionTexts.size !== optionTexts.length) {
+          return `La pregunta ${questionNumber} tiene opciones repetidas.`;
         }
 
         const correctOptions = question.opciones.filter(
@@ -303,7 +450,7 @@ function TechnicalCreateEvaluation() {
         );
 
         if (correctOptions.length !== 1) {
-          return `La pregunta ${index + 1} debe tener una sola respuesta correcta.`;
+          return `La pregunta ${questionNumber} debe tener una sola respuesta correcta.`;
         }
       }
     }
@@ -470,8 +617,13 @@ function TechnicalCreateEvaluation() {
                   value={form.titulo}
                   onChange={handleFormChange}
                   placeholder="Ej: Evaluación Backend Spring Boot"
+                  maxLength={150}
                   className="input-light"
                 />
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Mínimo 5 caracteres. No debe ser solo números.
+                </p>
               </div>
 
               <div className="md:col-span-2">
@@ -484,8 +636,13 @@ function TechnicalCreateEvaluation() {
                   value={form.descripcion}
                   onChange={handleFormChange}
                   placeholder="Describe brevemente el objetivo de la evaluación."
+                  maxLength={1000}
                   className="w-full min-h-24 border border-slate-300 rounded-xl p-3 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 />
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Opcional. Si la ingresas, debe tener al menos 10 caracteres.
+                </p>
               </div>
 
               <div>
@@ -500,14 +657,19 @@ function TechnicalCreateEvaluation() {
                   />
 
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     name="duracionMinutos"
-                    min="1"
                     value={form.duracionMinutos}
                     onChange={handleFormChange}
+                    placeholder="Ej: 40"
                     className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                   />
                 </div>
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Debe ser mayor a 0.
+                </p>
               </div>
 
               <div>
@@ -516,13 +678,18 @@ function TechnicalCreateEvaluation() {
                 </label>
 
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   name="puntajeMaximo"
-                  min="1"
                   value={form.puntajeMaximo}
                   onChange={handleFormChange}
+                  placeholder="Ej: 100"
                   className="input-light"
                 />
+
+                <p className="text-xs text-slate-400 mt-1">
+                  Debe ser mayor a 0.
+                </p>
               </div>
             </div>
           )}
@@ -531,9 +698,7 @@ function TechnicalCreateEvaluation() {
         <section className="bg-white border border-slate-200 rounded-2xl p-5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
             <div>
-              <h2 className="text-xl font-black text-slate-900">
-                Preguntas
-              </h2>
+              <h2 className="text-xl font-black text-slate-900">Preguntas</h2>
 
               <p className="text-sm text-slate-500 mt-1">
                 Puntaje usado:{" "}
@@ -616,8 +781,8 @@ function TechnicalCreateEvaluation() {
                     </label>
 
                     <input
-                      type="number"
-                      min="1"
+                      type="text"
+                      inputMode="decimal"
                       value={question.puntaje}
                       onChange={(e) =>
                         handleQuestionChange(
@@ -626,6 +791,7 @@ function TechnicalCreateEvaluation() {
                           e.target.value
                         )
                       }
+                      placeholder="Ej: 20"
                       className="input-light"
                     />
                   </div>
@@ -645,6 +811,7 @@ function TechnicalCreateEvaluation() {
                         )
                       }
                       placeholder="Escribe la pregunta..."
+                      maxLength={500}
                       className="input-light"
                     />
                   </div>
@@ -688,6 +855,7 @@ function TechnicalCreateEvaluation() {
                               question.tipoPregunta === "VERDADERO_FALSO"
                             }
                             placeholder={`Opción ${optionIndex + 1}`}
+                            maxLength={250}
                             className="input-light"
                           />
 
