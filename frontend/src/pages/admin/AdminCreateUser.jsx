@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   LockKeyhole,
   Mail,
+  Phone,
   Save,
   ShieldCheck,
   UserRound,
@@ -34,12 +35,21 @@ const initialForm = {
   nombres: "",
   apellidos: "",
   correo: "",
+  telefono: "",
   password: "",
   confirmarPassword: "",
   rolId: "2",
   correoVerificado: true,
   debeCambiarPassword: true,
 };
+
+function isValidPersonName(value) {
+  return /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ' -]+$/.test(value.trim());
+}
+
+function hasOnlySpaces(value) {
+  return value.length > 0 && value.trim().length === 0;
+}
 
 function AdminCreateUser() {
   const navigate = useNavigate();
@@ -62,6 +72,33 @@ function AdminCreateUser() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
+    if (name === "nombres" || name === "apellidos") {
+      const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ' -]*$/;
+
+      if (!nameRegex.test(value)) {
+        return;
+      }
+    }
+
+    if (name === "correo" && /\s/.test(value)) {
+      return;
+    }
+
+    if (name === "telefono") {
+      const phoneRegex = /^\d{0,9}$/;
+
+      if (!phoneRegex.test(value)) {
+        return;
+      }
+    }
+
+    if (
+      (name === "password" || name === "confirmarPassword") &&
+      /\s/.test(value)
+    ) {
+      return;
+    }
+
     setForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -69,37 +106,92 @@ function AdminCreateUser() {
   };
 
   const validateForm = () => {
-    if (!form.nombres.trim()) return "Ingresa los nombres del usuario.";
+    const nombres = form.nombres.trim();
+    const apellidos = form.apellidos.trim();
+    const correo = form.correo.trim().toLowerCase();
+    const telefono = form.telefono.trim();
+    const password = form.password;
+    const confirmarPassword = form.confirmarPassword;
 
-    if (form.nombres.trim().length < 2) {
+    if (!nombres) return "Ingresa los nombres del usuario.";
+
+    if (hasOnlySpaces(form.nombres)) {
+      return "Los nombres no pueden contener solo espacios.";
+    }
+
+    if (nombres.length < 2) {
       return "Los nombres deben tener al menos 2 caracteres.";
     }
 
-    if (!form.apellidos.trim()) return "Ingresa los apellidos del usuario.";
+    if (!isValidPersonName(nombres)) {
+      return "Los nombres solo deben contener letras, espacios, guion o apóstrofe.";
+    }
 
-    if (form.apellidos.trim().length < 2) {
+    if (!apellidos) return "Ingresa los apellidos del usuario.";
+
+    if (hasOnlySpaces(form.apellidos)) {
+      return "Los apellidos no pueden contener solo espacios.";
+    }
+
+    if (apellidos.length < 2) {
       return "Los apellidos deben tener al menos 2 caracteres.";
     }
 
-    if (!form.correo.trim()) return "Ingresa el correo del usuario.";
+    if (!isValidPersonName(apellidos)) {
+      return "Los apellidos solo deben contener letras, espacios, guion o apóstrofe.";
+    }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!correo) return "Ingresa el correo del usuario.";
 
-    if (!emailRegex.test(form.correo.trim())) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    if (!emailRegex.test(correo)) {
       return "Ingresa un correo válido.";
     }
 
-    if (!form.password) return "Ingresa una contraseña temporal.";
-
-    if (form.password.length < 6) {
-      return "La contraseña debe tener al menos 6 caracteres.";
+    if (!telefono) {
+      return "Ingresa el número de celular del usuario.";
     }
 
-    if (form.password !== form.confirmarPassword) {
+    if (!/^\d+$/.test(telefono)) {
+      return "El celular solo debe contener números.";
+    }
+
+    if (telefono.length !== 9) {
+      return "El celular debe tener 9 dígitos.";
+    }
+
+    if (!telefono.startsWith("9")) {
+      return "El celular debe iniciar con 9.";
+    }
+
+    if (!password) return "Ingresa una contraseña temporal.";
+
+    if (password.length < 8) {
+      return "La contraseña debe tener al menos 8 caracteres.";
+    }
+
+    if (password.includes(" ")) {
+      return "La contraseña no debe contener espacios.";
+    }
+
+    if (!confirmarPassword) {
+      return "Confirma la contraseña temporal.";
+    }
+
+    if (password !== confirmarPassword) {
       return "Las contraseñas no coinciden.";
     }
 
     if (!form.rolId) return "Selecciona un rol.";
+
+    const selectedRoleExists = ROLE_OPTIONS.some(
+      (role) => Number(role.id) === Number(form.rolId)
+    );
+
+    if (!selectedRoleExists) {
+      return "Selecciona un rol válido.";
+    }
 
     return null;
   };
@@ -118,8 +210,10 @@ function AdminCreateUser() {
       nombres: form.nombres.trim(),
       apellidos: form.apellidos.trim(),
       correo: form.correo.trim().toLowerCase(),
+      telefono: form.telefono.trim(),
       password: form.password,
       rolId: Number(form.rolId),
+      estado: true,
       correoVerificado: Boolean(form.correoVerificado),
       debeCambiarPassword: Boolean(form.debeCambiarPassword),
     };
@@ -177,7 +271,8 @@ function AdminCreateUser() {
           </h2>
 
           <p className="text-sm text-slate-500 mt-1">
-            Estos datos serán usados para iniciar sesión en la plataforma.
+            Estos datos serán usados para identificar al usuario dentro del
+            sistema.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
@@ -197,9 +292,14 @@ function AdminCreateUser() {
                   value={form.nombres}
                   onChange={handleChange}
                   placeholder="Ej: Ana"
+                  maxLength={100}
                   className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
                 />
               </div>
+
+              <p className="text-xs text-slate-400 mt-1">
+                Solo letras, espacios, guion o apóstrofe.
+              </p>
             </div>
 
             <div>
@@ -212,11 +312,16 @@ function AdminCreateUser() {
                 value={form.apellidos}
                 onChange={handleChange}
                 placeholder="Ej: Torres Pérez"
+                maxLength={100}
                 className="input-light"
               />
+
+              <p className="text-xs text-slate-400 mt-1">
+                Solo letras, espacios, guion o apóstrofe.
+              </p>
             </div>
 
-            <div className="md:col-span-2">
+            <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
                 Correo *
               </label>
@@ -233,9 +338,42 @@ function AdminCreateUser() {
                   value={form.correo}
                   onChange={handleChange}
                   placeholder="usuario@empresa.com"
+                  maxLength={120}
                   className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
                 />
               </div>
+
+              <p className="text-xs text-slate-400 mt-1">
+                No debe contener espacios.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Celular *
+              </label>
+
+              <div className="relative">
+                <Phone
+                  size={17}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-600 pointer-events-none"
+                />
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  name="telefono"
+                  value={form.telefono}
+                  onChange={handleChange}
+                  placeholder="Ej: 987654321"
+                  maxLength={9}
+                  className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
+                />
+              </div>
+
+              <p className="text-xs text-slate-400 mt-1">
+                Debe tener 9 dígitos e iniciar con 9.
+              </p>
             </div>
           </div>
         </section>
@@ -297,10 +435,15 @@ function AdminCreateUser() {
                   name="password"
                   value={form.password}
                   onChange={handleChange}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres"
+                  maxLength={60}
                   className="w-full border border-slate-300 rounded-xl py-3 pr-4 pl-11 outline-none bg-white text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-100"
                 />
               </div>
+
+              <p className="text-xs text-slate-400 mt-1">
+                Mínimo 8 caracteres y sin espacios.
+              </p>
             </div>
 
             <div>
@@ -314,6 +457,7 @@ function AdminCreateUser() {
                 value={form.confirmarPassword}
                 onChange={handleChange}
                 placeholder="Repite la contraseña"
+                maxLength={60}
                 className="input-light"
               />
             </div>
