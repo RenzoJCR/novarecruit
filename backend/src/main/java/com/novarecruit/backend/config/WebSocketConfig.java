@@ -18,7 +18,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
+        /*
+         * El backend publicará mensajes en:
+         * /topic/notificaciones/{usuarioId}
+         */
         registry.enableSimpleBroker("/topic");
+
+        /*
+         * Reservado por si luego el frontend envía mensajes al backend.
+         */
         registry.setApplicationDestinationPrefixes("/app");
     }
 
@@ -30,12 +38,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .toArray(String[]::new);
 
         /*
-         * Endpoint WebSocket nativo.
+         * Endpoint WebSocket nativo:
          *
          * Local:
          * ws://localhost:8080/ws
          *
-         * Azure con Nginx:
+         * Azure:
          * ws://57.156.65.62/ws
          */
         registry.addEndpoint("/ws")

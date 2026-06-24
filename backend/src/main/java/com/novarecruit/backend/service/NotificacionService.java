@@ -5,10 +5,8 @@ import com.novarecruit.backend.entity.Notificacion;
 import com.novarecruit.backend.exception.BusinessException;
 import com.novarecruit.backend.repository.NotificacionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
@@ -17,22 +15,19 @@ import java.util.List;
 public class NotificacionService {
 
     private final NotificacionRepository notificacionRepository;
-    private final NotificacionSocketService notificacionSocketService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /*
-     * Método central del sistema de notificaciones.
+     * Crea una notificación y además la envía en tiempo real por WebSocket.
      *
-     * Cada vez que otra parte del sistema llama a crearNotificacion:
+     * Flujo:
+     * 1. Se guarda en la tabla notificaciones.
+     * 2. Se convierte a NotificacionResponse.
+     * 3. Se publica al canal /topic/notificaciones/{usuarioId}.
      *
-     * 1. Se guarda la notificación en la tabla notificaciones.
-     * 2. Se convierte a DTO.
-     * 3. Después de confirmar la transacción en BD, se envía por WebSocket.
-     *
-     * Esto permite que el frontend actualice la vista de notificaciones
-     * en tiempo real y sin recargar manualmente.
+     * El frontend está suscrito exactamente a ese canal.
      */
-    @Transactional
-    public NotificacionResponse crearNotificacion(
+    public void crearNotificacion(
             Long usuarioId,
             String titulo,
             String mensaje,
@@ -52,36 +47,12 @@ public class NotificacionService {
 
         NotificacionResponse response = mapToResponse(guardada);
 
-        emitirDespuesDeGuardar(response);
-
-        return response;
+        messagingTemplate.convertAndSend(
+                "/topic/notificaciones/" + usuarioId,
+                response
+        );
     }
 
-    /*
-     * Este método evita un problema común:
-     *
-     * Si enviamos el WebSocket antes de que la transacción termine,
-     * el frontend puede recibir el aviso y consultar la lista demasiado rápido,
-     * cuando la notificación todavía no está confirmada en MySQL.
-     *
-     * Por eso esperamos al afterCommit.
-     */
-    private void emitirDespuesDeGuardar(NotificacionResponse response) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            notificacionSocketService.emitirNotificacion(response);
-                        }
-                    }
-            );
-        } else {
-            notificacionSocketService.emitirNotificacion(response);
-        }
-    }
-
-    @Transactional(readOnly = true)
     public List<NotificacionResponse> listarPorUsuario(Long usuarioId) {
         return notificacionRepository.findByUsuarioIdOrderByCreatedAtDesc(usuarioId)
                 .stream()
@@ -89,7 +60,6 @@ public class NotificacionService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
     public List<NotificacionResponse> listarNoLeidasPorUsuario(Long usuarioId) {
         return notificacionRepository.findByUsuarioIdAndLeidoFalseOrderByCreatedAtDesc(usuarioId)
                 .stream()
@@ -97,7 +67,6 @@ public class NotificacionService {
                 .toList();
     }
 
-    @Transactional
     public NotificacionResponse marcarComoLeida(Long id) {
         Notificacion notificacion = notificacionRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("No se encontró la notificación solicitada."));
